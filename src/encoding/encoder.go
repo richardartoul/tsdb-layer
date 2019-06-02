@@ -2,6 +2,7 @@ package encoding
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 	"unsafe"
 
@@ -99,6 +100,10 @@ func (e *encoder) State() []byte {
 }
 
 func (e *encoder) Restore(b []byte) error {
+	if b == nil {
+		return fmt.Errorf("cannot restore from nil state")
+	}
+
 	marshalState := marshalState{}
 	if err := json.Unmarshal(b, &marshalState); err != nil {
 		return err
@@ -107,7 +112,10 @@ func (e *encoder) Restore(b []byte) error {
 	e.tsEncoder = marshalState.tsEncoder
 	e.floatEncoder = marshalState.floatEncoder
 	e.hasWrittenFirst = marshalState.hasWrittenFirst
-	// e.OStream.
+
+	// TODO(rartoul): Fix this non-sense.
+	e.stream.(*ostream).buf = []byte{marshalState.lastByte}
+	e.stream.(*ostream).pos = marshalState.bitPos
 
 	return nil
 }
