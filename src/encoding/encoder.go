@@ -107,6 +107,7 @@ func (e *encoder) Restore(b []byte) error {
 	e.tsEncoder = marshalState.tsEncoder
 	e.floatEncoder = marshalState.floatEncoder
 	e.hasWrittenFirst = marshalState.hasWrittenFirst
+	// e.OStream.
 
 	return nil
 }
