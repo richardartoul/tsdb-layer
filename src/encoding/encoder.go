@@ -24,11 +24,11 @@ type Encoder interface {
 }
 
 type marshalState struct {
-	tsEncoder       m3tsz.TimestampEncoder
-	floatEncoder    m3tsz.FloatEncoderAndIterator
-	lastByte        byte
-	bitPos          int
-	hasWrittenFirst bool
+	TSEncoder       m3tsz.TimestampEncoder
+	FloatEncoder    m3tsz.FloatEncoderAndIterator
+	LastByte        byte
+	BitPos          int
+	HasWrittenFirst bool
 }
 
 type encoder struct {
@@ -82,12 +82,14 @@ func (e *encoder) State() []byte {
 	}
 
 	marshalState := marshalState{
-		tsEncoder:       e.tsEncoder,
-		floatEncoder:    e.floatEncoder,
-		hasWrittenFirst: e.hasWrittenFirst,
-		lastByte:        lastByte,
-		bitPos:          bitPos,
+		TSEncoder:       e.tsEncoder,
+		FloatEncoder:    e.floatEncoder,
+		HasWrittenFirst: e.hasWrittenFirst,
+		LastByte:        lastByte,
+		BitPos:          bitPos,
 	}
+	// Prevent JSON marshaling error.
+	marshalState.TSEncoder.Options = nil
 
 	// TODO(rartoul): Replace this with something efficient / performant.
 	marshaled, err := json.Marshal(&marshalState)
@@ -109,13 +111,17 @@ func (e *encoder) Restore(b []byte) error {
 		return err
 	}
 
-	e.tsEncoder = marshalState.tsEncoder
-	e.floatEncoder = marshalState.floatEncoder
-	e.hasWrittenFirst = marshalState.hasWrittenFirst
+	e.tsEncoder = marshalState.TSEncoder
+	e.tsEncoder.Options = opts
+	e.floatEncoder = marshalState.FloatEncoder
+	e.hasWrittenFirst = marshalState.HasWrittenFirst
 
+	if e.stream == nil {
+		e.stream = NewOStream()
+	}
 	// TODO(rartoul): Fix this non-sense.
-	e.stream.(*ostream).buf = []byte{marshalState.lastByte}
-	e.stream.(*ostream).pos = marshalState.bitPos
+	e.stream.(*ostream).buf = []byte{marshalState.LastByte}
+	e.stream.(*ostream).pos = marshalState.BitPos
 
 	return nil
 }
