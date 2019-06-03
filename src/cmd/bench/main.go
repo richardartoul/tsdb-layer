@@ -29,9 +29,24 @@ func main() {
 		numWorkers         int
 	}{
 		{
+			numSeries:          1000,
+			numWritesPerWorker: 100,
+			numWorkers:         1000,
+		},
+		{
 			numSeries:          100000,
 			numWritesPerWorker: 100,
 			numWorkers:         1000,
+		},
+		{
+			numSeries:          100000,
+			numWritesPerWorker: 100,
+			numWorkers:         2000,
+		},
+		{
+			numSeries:          100000,
+			numWritesPerWorker: 10,
+			numWorkers:         10000,
 		},
 	}
 
