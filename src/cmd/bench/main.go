@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"math/rand"
+	"runtime/pprof"
 	"sync"
 	"time"
 
@@ -10,6 +12,17 @@ import (
 )
 
 func main() {
+	tempFile, err := ioutil.TempFile("", "bench_cpu	")
+	if err != nil {
+		panic(err)
+	}
+
+	pprof.StartCPUProfile(tempFile)
+	defer func() {
+		defer pprof.StopCPUProfile()
+		fmt.Println("cpu profile at:", tempFile.Name())
+	}()
+
 	testCases := []struct {
 		numSeries          int
 		numWritesPerWorker int
