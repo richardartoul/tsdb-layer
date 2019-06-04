@@ -16,7 +16,7 @@ import (
 var (
 	numSeriesFlag  = flag.Int("numSeries", 100000, "number of unique series")
 	batchSizeFlag  = flag.Int("batchSize", 8, "client batch size")
-	numWorkersFlag = flag.Int("numWorkers", 1000, "number of concurrent workers")
+	numWorkersFlag = flag.Int("numWorkers", 100, "number of concurrent workers")
 	durationFlag   = flag.Duration("duration", time.Minute, "duration to run the load test")
 )
 
@@ -62,20 +62,23 @@ func main() {
 		close(doneCh)
 	}()
 	for i := 0; i < numWorkers; i++ {
-		source := rand.NewSource(time.Now().UnixNano())
-		rng := rand.New(source)
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 
-			j := 0
+			var (
+				j      = 0
+				batch  = make([]layer.Write, 0, batchSize)
+				source = rand.NewSource(time.Now().UnixNano())
+				rng    = rand.New(source)
+			)
 			for {
 				select {
 				case <-doneCh:
 					return
 				default:
 				}
-				batch := make([]layer.Write, 0, batchSize)
+				batch = batch[:0]
 				for y := 0; y < batchSize; y++ {
 					idx := rng.Intn(numSeries)
 					batch = append(batch, layer.Write{ID: seriesIDs[idx], Timestamp: time.Unix(0, int64(j)), Value: float64(j)})
