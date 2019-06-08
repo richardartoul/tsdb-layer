@@ -10,9 +10,12 @@
   version = "0.10.0"
 
 [[projects]]
-  digest = "1:890ef9111eba2dcf80e851d1333117969dbb9a3b9073a1398197ca97899211dc"
+  digest = "1:010ac780f94633dc91ef721a395c5768ace4456b4833dea5ad7c026802ff143e"
   name = "github.com/apple/foundationdb"
-  packages = ["bindings/go/src/fdb"]
+  packages = [
+    "bindings/go/src/fdb",
+    "bindings/go/src/fdb/tuple",
+  ]
   pruneopts = "UT"
   revision = "bd6b10cbcee08910667194e6388733acd3b80549"
   version = "6.1.8"
@@ -322,6 +325,7 @@
   analyzer-version = 1
   input-imports = [
     "github.com/apple/foundationdb/bindings/go/src/fdb",
+    "github.com/apple/foundationdb/bindings/go/src/fdb/tuple",
     "github.com/m3db/m3/src/dbnode/encoding",
     "github.com/m3db/m3/src/dbnode/encoding/m3tsz",
     "github.com/m3db/m3/src/x/time",

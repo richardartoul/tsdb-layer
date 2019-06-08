@@ -1,4 +1,4 @@
-package layer
+package dircompress
 
 import (
 	"encoding/json"
@@ -8,24 +8,19 @@ import (
 
 	"github.com/apple/foundationdb/bindings/go/src/fdb"
 	"github.com/richardartoul/tsdb-layer/src/encoding"
+	"github.com/richardartoul/tsdb-layer/src/layer"
 )
 
-type Layer interface {
-	Write(id string, timestamp time.Time, value float64) error
-	WriteBatch(writes []Write) error
-	Read(id string) (encoding.Decoder, error)
-}
-
-func NewLayer() Layer {
+func NewLayer() layer.Layer {
 	fdb.MustAPIVersion(610)
 	// TODO(rartoul): Make this configurable.
 	db := fdb.MustOpenDefault()
-	return &layer{
+	return &directCompress{
 		db: db,
 	}
 }
 
-type layer struct {
+type directCompress struct {
 	db fdb.Database
 }
 
@@ -34,18 +29,12 @@ type timeSeriesMetadata struct {
 	LastByte byte
 }
 
-type Write struct {
-	ID        string
-	Timestamp time.Time
-	Value     float64
-}
-
-func (l *layer) Write(id string, timestamp time.Time, value float64) error {
+func (l *directCompress) Write(id string, timestamp time.Time, value float64) error {
 	// TODO: Don't allocate
-	return l.WriteBatch([]Write{Write{ID: id, Timestamp: timestamp, Value: value}})
+	return l.WriteBatch([]layer.Write{{ID: id, Timestamp: timestamp, Value: value}})
 }
 
-func (l *layer) WriteBatch(writes []Write) error {
+func (l *directCompress) WriteBatch(writes []layer.Write) error {
 	_, err := l.db.Transact(func(tr fdb.Transaction) (interface{}, error) {
 		metadataFutures := make([]fdb.FutureByteSlice, 0, len(writes))
 		for _, w := range writes {
@@ -137,7 +126,7 @@ func (l *layer) WriteBatch(writes []Write) error {
 	return nil
 }
 
-func (l *layer) Read(id string) (encoding.Decoder, error) {
+func (l *directCompress) Read(id string) (encoding.Decoder, error) {
 	stream, err := l.db.Transact(func(tr fdb.Transaction) (interface{}, error) {
 		var (
 			metadataKey    = newTimeseriesMetadataKeyFromID(id)

@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"math/rand"
 	"runtime/pprof"
 	"sync"
@@ -11,13 +12,17 @@ import (
 	"time"
 
 	"github.com/richardartoul/tsdb-layer/src/layer"
+	"github.com/richardartoul/tsdb-layer/src/layer/dircompress"
+	"github.com/richardartoul/tsdb-layer/src/layer/raw"
+	"github.com/richardartoul/tsdb-layer/src/layer/rawblock"
 )
 
 var (
-	numSeriesFlag  = flag.Int("numSeries", 100000, "number of unique series")
-	batchSizeFlag  = flag.Int("batchSize", 8, "client batch size")
-	numWorkersFlag = flag.Int("numWorkers", 100, "number of concurrent workers")
-	durationFlag   = flag.Duration("duration", time.Minute, "duration to run the load test")
+	numSeriesFlag   = flag.Int("numSeries", 100000, "number of unique series")
+	batchSizeFlag   = flag.Int("batchSize", 8, "client batch size")
+	numWorkersFlag  = flag.Int("numWorkers", 100, "number of concurrent workers")
+	durationFlag    = flag.Duration("duration", time.Minute, "duration to run the load test")
+	layerEngineFlag = flag.String("layerEngine", "direct-compress", "layer engine to benchmark")
 )
 
 func main() {
@@ -35,18 +40,30 @@ func main() {
 	}()
 
 	var (
-		numSeries  = *numSeriesFlag
-		batchSize  = *batchSizeFlag
-		numWorkers = *numWorkersFlag
-		duration   = *durationFlag
+		numSeries   = *numSeriesFlag
+		batchSize   = *batchSizeFlag
+		numWorkers  = *numWorkersFlag
+		duration    = *durationFlag
+		layerEngine = *layerEngineFlag
 	)
 	fmt.Println("Running test with arguments:")
+	fmt.Println("    layerEngine:", layerEngine)
 	fmt.Println("    numSeries:", numSeries)
 	fmt.Println("    batchSize:", batchSize)
 	fmt.Println("    numWorkers:", numWorkers)
 	fmt.Println("    duration:", duration)
 
-	layerClient := layer.NewLayer()
+	var layerClient layer.Layer
+	switch layerEngine {
+	case "direct-compress":
+		layerClient = dircompress.NewLayer()
+	case "raw":
+		layerClient = raw.NewLayer()
+	case "raw-block":
+		layerClient = rawblock.NewLayer()
+	default:
+		log.Fatalf("invalid layer engine: ", layerEngine)
+	}
 	seriesIDs := make([]string, 0, numSeries)
 	for i := 0; i < numSeries; i++ {
 		seriesIDs = append(seriesIDs, fmt.Sprintf("%s-%d", randomString(20), i))

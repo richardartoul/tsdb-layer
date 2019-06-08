@@ -1,4 +1,4 @@
-package layer
+package dircompress
 
 import (
 	"testing"
