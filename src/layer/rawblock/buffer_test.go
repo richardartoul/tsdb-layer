@@ -30,6 +30,7 @@ func TestBufferWriteRead(t *testing.T) {
 			title: "in order values",
 			vals:  []testValue{{timestamp: time.Unix(0, 0), value: 0}, {timestamp: time.Unix(1, 0), value: 1}},
 		},
+		// TODO(rartoul): Not supported right now.
 		// {
 		// 	title: "out of order values",
 		// 	vals:  []testValue{{timestamp: time.Unix(1, 0), value: 1}, {timestamp: time.Unix(0, 0), value: 0}},
