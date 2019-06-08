@@ -73,6 +73,7 @@ func TestMultiDecoder(t *testing.T) {
 				require.Equal(t, expected[i].value, currV)
 				i++
 			}
+			require.NoError(t, multiDecoder.Err())
 			require.Equal(t, len(expected), i)
 		})
 	}
