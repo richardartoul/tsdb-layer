@@ -3,6 +3,7 @@ package encoding
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"time"
 	"unsafe"
 
@@ -18,6 +19,7 @@ var (
 
 type Encoder interface {
 	Encode(timestamp time.Time, value float64) error
+	LastEncoded() (time.Time, float64)
 	State() []byte
 	Restore(b []byte) error
 	Bytes() []byte
@@ -70,6 +72,10 @@ func (e *encoder) Encode(timestamp time.Time, value float64) error {
 	e.floatEncoder.WriteFloat(encodingStream, value)
 	e.hasWrittenFirst = true
 	return nil
+}
+
+func (e *encoder) LastEncoded() (time.Time, float64) {
+	return e.tsEncoder.PrevTime, math.Float64frombits(e.floatEncoder.PrevFloatBits)
 }
 
 func (e *encoder) State() []byte {

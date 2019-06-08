@@ -12,44 +12,81 @@ type testValue struct {
 	value     float64
 }
 
+type roundTripTestCase struct {
+	title string
+	vals  []testValue
+}
+
 // TODO(rartoul): This probably needs some kind of property test.
 func TestRoundTripSimple(t *testing.T) {
-	values := []testValue{
+	testCases := []roundTripTestCase{
 		{
-			timestamp: time.Unix(0, 1),
-			value:     -1,
+			title: "simple in order",
+			vals: []testValue{
+				{
+					timestamp: time.Unix(0, 1),
+					value:     -1,
+				},
+				{
+					timestamp: time.Unix(0, 2),
+					value:     0,
+				},
+				{
+					timestamp: time.Unix(0, 3),
+					value:     1,
+				},
+			},
 		},
 		{
-			timestamp: time.Unix(0, 2),
-			value:     0,
-		},
-		{
-			timestamp: time.Unix(0, 3),
-			value:     1,
+			title: "simple out of order",
+			vals: []testValue{
+				{
+					timestamp: time.Unix(0, 3),
+					value:     -1,
+				},
+				{
+					timestamp: time.Unix(0, 2),
+					value:     0,
+				},
+				{
+					timestamp: time.Unix(0, 1),
+					value:     1,
+				},
+			},
 		},
 	}
 
-	encoder := NewEncoder()
-	for _, v := range values {
-		err := encoder.Encode(v.timestamp, v.value)
-		require.NoError(t, err)
+	for _, tc := range testCases {
+		t.Run(tc.title, func(t *testing.T) {
+			encoder := NewEncoder()
+			for _, v := range tc.vals {
+				err := encoder.Encode(v.timestamp, v.value)
+				require.NoError(t, err)
+
+				// TODO(rartoul): This should probably be its own test.
+				lastEncodedT, lastEncodedV := encoder.LastEncoded()
+				require.True(t, v.timestamp.Equal(lastEncodedT))
+				require.Equal(t, v.value, lastEncodedV)
+			}
+
+			encodedBytes := encoder.Bytes()
+			require.Equal(t, 22, len(encodedBytes))
+
+			decoder := NewDecoder()
+			decoder.Reset(encodedBytes)
+
+			i := 0
+			for decoder.Next() {
+				currT, currV := decoder.Current()
+				require.Equal(t, tc.vals[i].timestamp, currT)
+				require.Equal(t, tc.vals[i].value, currV)
+				i++
+			}
+			require.NoError(t, decoder.Err())
+			require.Equal(t, len(tc.vals), i)
+		})
 	}
 
-	encodedBytes := encoder.Bytes()
-	require.Equal(t, 22, len(encodedBytes))
-
-	decoder := NewDecoder()
-	decoder.Reset(encodedBytes)
-
-	i := 0
-	for decoder.Next() {
-		currT, currV := decoder.Current()
-		require.Equal(t, values[i].timestamp, currT)
-		require.Equal(t, values[i].value, currV)
-		i++
-	}
-	require.NoError(t, decoder.Err())
-	require.Equal(t, len(values), i)
 }
 
 func TestRoundTripWithStateAndRestore(t *testing.T) {
