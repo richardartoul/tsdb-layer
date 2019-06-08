@@ -40,6 +40,10 @@ func (m *multiDecoder) Next() bool {
 	if dec.Next() {
 		t, v := dec.Current()
 		heap.Push(&m.heap, heapEntry{t: t, v: v, decIdx: m.currEntry.decIdx})
+	} else {
+		if dec.Err() != nil {
+			m.err = dec.Err()
+		}
 	}
 	return true
 }
@@ -48,7 +52,12 @@ func (m *multiDecoder) Current() (time.Time, float64) {
 	return m.currEntry.t, m.currEntry.v
 }
 
+func (m *multiDecoder) Err() error {
+	return nil
+}
+
 func (m *multiDecoder) Reset(decs []Decoder) {
+	m.err = nil
 	for i := range m.decs {
 		m.decs[i] = decState{}
 	}
@@ -62,10 +71,11 @@ func (m *multiDecoder) Reset(decs []Decoder) {
 		if dec.dec.Next() {
 			t, v := dec.dec.Current()
 			m.heap.vals = append(m.heap.vals, heapEntry{t: t, v: v, decIdx: i})
+		} else {
+			if dec.dec.Err() != nil {
+				m.err = dec.dec.Err()
+			}
 		}
-		// else {
-		// 	m.decs[i].done = true
-		// }
 	}
 	heap.Init(&m.heap)
 }
