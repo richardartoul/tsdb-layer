@@ -1,7 +1,7 @@
 package rawblock
 
 import (
-	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/richardartoul/tsdb-layer/src/encoding"
@@ -24,6 +24,7 @@ func NewBuffer() Buffer {
 	}
 }
 
+// TODO(rartoul): Should have per-write error handling.
 func (b *buffer) Write(writes []layer.Write) error {
 	b.Lock()
 	defer b.Unlock()
@@ -36,14 +37,21 @@ func (b *buffer) Write(writes []layer.Write) error {
 		}
 
 		enc := encoders[len(encoders)-1]
-		lastT, _ := enc.LastEncoded()
-		if w.Timestamp.Before(lastT) {
-			// TODO(rartoul): Remove this restriction with multiple encoders.
-			return errors.New("cannot write data out of order")
+		lastT, _, hasWrittenAnyValues := enc.LastEncoded()
+		if hasWrittenAnyValues {
+			if w.Timestamp.Before(lastT) {
+				// TODO(rartoul): Remove this restriction with multiple encoders.
+				return fmt.Errorf(
+					"cannot write data out of order, series: %s, prevTimestamp: %s, currTimestamp: %s",
+					w.ID, lastT.String(), w.Timestamp.String())
+			}
+			if w.Timestamp.Equal(lastT) {
+				return fmt.Errorf(
+					"cannot upsert existing values, series: %s, currTimestamp: %s",
+					w.ID, lastT.String())
+			}
 		}
-		if w.Timestamp.Equal(lastT) {
-			return errors.New("cannot upsert existing values")
-		}
+
 		if err := enc.Encode(w.Timestamp, w.Value); err != nil {
 			return err
 		}

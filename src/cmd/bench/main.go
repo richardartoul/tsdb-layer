@@ -8,7 +8,6 @@ import (
 	"math/rand"
 	"runtime/pprof"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/richardartoul/tsdb-layer/src/layer"
@@ -80,14 +79,18 @@ func main() {
 	}()
 	for i := 0; i < numWorkers; i++ {
 		wg.Add(1)
-		go func() {
+		// Chunk up the IDs into groups for each worker.
+		idsBatchSize := len(seriesIDs) / numWorkers
+		localIDs := seriesIDs[idsBatchSize*i : idsBatchSize*i+idsBatchSize]
+
+		go func(localIDs []string) {
 			defer wg.Done()
 
 			var (
-				j      = 0
-				batch  = make([]layer.Write, 0, batchSize)
-				source = rand.NewSource(time.Now().UnixNano())
-				rng    = rand.New(source)
+				batch   = make([]layer.Write, 0, batchSize)
+				source  = rand.NewSource(time.Now().UnixNano())
+				rng     = rand.New(source)
+				currVal = 0
 			)
 			for {
 				select {
@@ -96,22 +99,22 @@ func main() {
 				default:
 				}
 				batch = batch[:0]
-				for y := 0; y < batchSize; y++ {
-					idx := rng.Intn(numSeries)
+				for j := 0; j < batchSize; j++ {
+					idx := rng.Intn(len(localIDs))
 					batch = append(
 						batch,
 						layer.Write{
-							ID:        seriesIDs[idx],
-							Timestamp: time.Unix(0, int64(j+y)),
-							Value:     float64(j + y)})
+							ID:        localIDs[idx],
+							Timestamp: time.Unix(0, int64(currVal)),
+							Value:     float64(currVal)})
+					currVal++
 				}
 				if err := layerClient.WriteBatch(batch); err != nil {
 					panic(err)
 				}
-				atomic.AddInt64(&numWritesCompleted, int64(batchSize))
-				j++
 			}
-		}()
+		}(localIDs)
+
 	}
 	wg.Wait()
 
