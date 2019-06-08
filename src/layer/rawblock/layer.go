@@ -24,6 +24,7 @@ func NewLayer() layer.Layer {
 	return &rawBlock{
 		db:        db,
 		cl:        cl,
+		buffer:    NewBuffer(),
 		bytesPool: newBytesPool(1024, 16000, 4096),
 	}
 }
@@ -31,6 +32,7 @@ func NewLayer() layer.Layer {
 type rawBlock struct {
 	db        fdb.Database
 	cl        Commitlog
+	buffer    Buffer
 	bytesPool *bytesPool
 }
 
@@ -40,12 +42,17 @@ func (l *rawBlock) Write(id string, timestamp time.Time, value float64) error {
 }
 
 func (l *rawBlock) WriteBatch(writes []layer.Write) error {
+	if err := l.buffer.Write(writes); err != nil {
+		return err
+	}
+
 	b := l.bytesPool.Get()
 	for _, w := range writes {
 		b = encodeWrite(b, w)
 	}
 	err := l.cl.Write(b)
 	l.bytesPool.Put(b)
+
 	return err
 }
 
