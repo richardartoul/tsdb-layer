@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"runtime/pprof"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/richardartoul/tsdb-layer/src/layer"
@@ -90,11 +91,12 @@ func main() {
 				batch   = make([]layer.Write, 0, batchSize)
 				source  = rand.NewSource(time.Now().UnixNano())
 				rng     = rand.New(source)
-				currVal = 0
+				currVal int64
 			)
 			for {
 				select {
 				case <-doneCh:
+					atomic.AddInt64(&numWritesCompleted, currVal)
 					return
 				default:
 				}

@@ -159,7 +159,8 @@ func (c *commitlog) flush() error {
 	}
 
 	toWrite := c.currBatch
-	c.currBatch = c.prevBatch[:0]
+	c.currBatch, c.prevBatch = c.prevBatch, c.currBatch
+	c.currBatch = c.currBatch[:0]
 	currFlushOutcome := c.flushOutcome
 	c.flushOutcome = newFlushOutcome()
 	c.Unlock()
