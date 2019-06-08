@@ -59,12 +59,17 @@ func TestRoundTripSimple(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.title, func(t *testing.T) {
 			encoder := NewEncoder()
+			// TODO(rartoul): This should probably be its own test.
+			_, _, ok := encoder.LastEncoded()
+			require.False(t, ok)
+
 			for _, v := range tc.vals {
 				err := encoder.Encode(v.timestamp, v.value)
 				require.NoError(t, err)
 
 				// TODO(rartoul): This should probably be its own test.
-				lastEncodedT, lastEncodedV := encoder.LastEncoded()
+				lastEncodedT, lastEncodedV, ok := encoder.LastEncoded()
+				require.True(t, ok)
 				require.True(t, v.timestamp.Equal(lastEncodedT))
 				require.Equal(t, v.value, lastEncodedV)
 			}

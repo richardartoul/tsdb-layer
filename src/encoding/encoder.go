@@ -19,7 +19,7 @@ var (
 
 type Encoder interface {
 	Encode(timestamp time.Time, value float64) error
-	LastEncoded() (time.Time, float64)
+	LastEncoded() (time.Time, float64, bool)
 	State() []byte
 	Restore(b []byte) error
 	Bytes() []byte
@@ -74,8 +74,8 @@ func (e *encoder) Encode(timestamp time.Time, value float64) error {
 	return nil
 }
 
-func (e *encoder) LastEncoded() (time.Time, float64) {
-	return e.tsEncoder.PrevTime, math.Float64frombits(e.floatEncoder.PrevFloatBits)
+func (e *encoder) LastEncoded() (time.Time, float64, bool) {
+	return e.tsEncoder.PrevTime, math.Float64frombits(e.floatEncoder.PrevFloatBits), e.hasWrittenFirst
 }
 
 func (e *encoder) State() []byte {
