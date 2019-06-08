@@ -2,6 +2,7 @@ package rawblock
 
 import (
 	"errors"
+	"log"
 	"sync"
 	"time"
 
@@ -14,6 +15,8 @@ const (
 	defaultBatchSize       = 4096
 	defaultMaxPendingBytes = 10000000
 	defaultFlushEvery      = time.Millisecond
+
+	commitLogKey = "commitlog-"
 )
 
 type clStatus int
@@ -100,6 +103,7 @@ func (c *commitlog) Open() error {
 
 	go func() {
 		for {
+			i := 0
 			select {
 			case <-c.closeCh:
 				c.closeDoneCh <- c.flush()
@@ -107,7 +111,17 @@ func (c *commitlog) Open() error {
 			default:
 			}
 			time.Sleep(time.Millisecond)
-			c.flush()
+			if i%10 == 0 {
+				// TODO(rartoul): Remove this.
+				// Truncate regularly to measure performance impact.
+				if err := c.Truncate(); err != nil {
+					log.Printf("error truncating commitlog: %v", err)
+				}
+			}
+			if err := c.flush(); err != nil {
+				log.Printf("error flushing commitlog: %v", err)
+			}
+			i++
 		}
 	}()
 
@@ -151,6 +165,17 @@ func (c *commitlog) Write(b []byte) error {
 	return currFlushOutcome.waitForFlush()
 }
 
+// TODO(rartoul): This should accept some kind of range or token to specify which
+// entries to clear.
+func (c *commitlog) Truncate() error {
+	_, err := c.db.Transact(func(tr fdb.Transaction) (interface{}, error) {
+		tr.ClearRange(fdb.KeyRange{Begin: tuple.Tuple{commitLogKey}, End: fdb.Key{0xFF}})
+		return nil, nil
+	})
+
+	return err
+}
+
 func (c *commitlog) flush() error {
 	c.Lock()
 	if !(time.Since(c.lastFlushTime) >= c.opts.FlushEvery && len(c.currBatch) > 0) {
@@ -187,5 +212,5 @@ func (c *commitlog) flush() error {
 }
 
 func (c *commitlog) nextKey() tuple.Tuple {
-	return tuple.Tuple{time.Now().UnixNano()}
+	return tuple.Tuple{commitLogKey, time.Now().UnixNano()}
 }
