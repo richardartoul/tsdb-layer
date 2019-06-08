@@ -42,36 +42,38 @@ func TestMultiDecoder(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		decs := make([]Decoder, 0, len(tc.streams))
-		expected := []testValue{}
-		for _, stream := range tc.streams {
-			enc := NewEncoder()
-			for _, v := range stream {
-				enc.Encode(v.timestamp, v.value)
-				expected = append(expected, v)
+		t.Run(tc.title, func(t *testing.T) {
+			decs := make([]Decoder, 0, len(tc.streams))
+			expected := []testValue{}
+			for _, stream := range tc.streams {
+				enc := NewEncoder()
+				for _, v := range stream {
+					enc.Encode(v.timestamp, v.value)
+					expected = append(expected, v)
+				}
+
+				dec := NewDecoder()
+				dec.Reset(enc.Bytes())
+				decs = append(decs, dec)
 			}
+			sort.Slice(expected, func(i, j int) bool {
+				return expected[i].timestamp.Before(expected[j].timestamp)
+			})
 
-			dec := NewDecoder()
-			dec.Reset(enc.Bytes())
-			decs = append(decs, dec)
-		}
-		sort.Slice(expected, func(i, j int) bool {
-			return expected[i].timestamp.Before(expected[j].timestamp)
+			multiDecoder := NewMultiDecoder()
+			multiDecoder.Reset(decs)
+
+			i := 0
+			for multiDecoder.Next() {
+				currT, currV := multiDecoder.Current()
+				require.True(
+					t,
+					expected[i].timestamp.Equal(currT),
+					fmt.Sprintf("expected %s but got %s", expected[i].timestamp.String(), currT.String()))
+				require.Equal(t, expected[i].value, currV)
+				i++
+			}
+			require.Equal(t, len(expected), i)
 		})
-
-		multiDecoder := NewMultiDecoder()
-		multiDecoder.Reset(decs)
-
-		i := 0
-		for multiDecoder.Next() {
-			currT, currV := multiDecoder.Current()
-			require.True(
-				t,
-				expected[i].timestamp.Equal(currT),
-				fmt.Sprintf("expected %s but got %s", expected[i].timestamp.String(), currT.String()))
-			require.Equal(t, expected[i].value, currV)
-			i++
-		}
-		require.Equal(t, len(expected), i)
 	}
 }
