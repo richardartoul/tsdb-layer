@@ -98,7 +98,12 @@ func main() {
 				batch = batch[:0]
 				for y := 0; y < batchSize; y++ {
 					idx := rng.Intn(numSeries)
-					batch = append(batch, layer.Write{ID: seriesIDs[idx], Timestamp: time.Unix(0, int64(j)), Value: float64(j)})
+					batch = append(
+						batch,
+						layer.Write{
+							ID:        seriesIDs[idx],
+							Timestamp: time.Unix(0, int64(j+y)),
+							Value:     float64(j + y)})
 				}
 				if err := layerClient.WriteBatch(batch); err != nil {
 					panic(err)
