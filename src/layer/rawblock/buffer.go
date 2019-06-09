@@ -1,12 +1,46 @@
 package rawblock
 
 import (
+	"encoding/json"
 	"fmt"
 	"sync"
+	"time"
 
+	"github.com/apple/foundationdb/bindings/go/src/fdb"
+	"github.com/apple/foundationdb/bindings/go/src/fdb/tuple"
 	"github.com/richardartoul/tsdb-layer/src/encoding"
 	"github.com/richardartoul/tsdb-layer/src/layer"
 )
+
+const (
+	bufferKeyPrefix    = "b-"
+	metadataKeyPostfix = "-meta"
+	tsChunkKeyPrefix   = "-chunk-"
+)
+
+type tsMetadata struct {
+	chunks []chunkMetadata
+}
+
+func newTSMetadata() tsMetadata {
+	return tsMetadata{}
+}
+
+type chunkMetadata struct {
+	key       []byte
+	first     time.Time
+	last      time.Time
+	sizeBytes int
+}
+
+func newChunkMetadata(key []byte, first, last time.Time, sizeBytes int) chunkMetadata {
+	return chunkMetadata{
+		key:       key,
+		first:     first,
+		last:      last,
+		sizeBytes: sizeBytes,
+	}
+}
 
 type Buffer interface {
 	Write(writes []layer.Write) error
@@ -15,11 +49,13 @@ type Buffer interface {
 
 type buffer struct {
 	sync.Mutex
+	db       fdb.Database
 	encoders map[string][]encoding.Encoder
 }
 
-func NewBuffer() Buffer {
+func NewBuffer(db fdb.Database) Buffer {
 	return &buffer{
+		db:       db,
 		encoders: map[string][]encoding.Encoder{},
 	}
 }
@@ -80,4 +116,100 @@ func encodersToDecoders(encs []encoding.Encoder) []encoding.Decoder {
 		decs = append(decs, dec)
 	}
 	return decs
+}
+
+func (b *buffer) Flush() error {
+	b.Lock()
+	for seriesID, encoders := range b.encoders {
+		encoders = append(encoders, encoding.NewEncoder())
+		encodersToFlush := encoders[:len(encoders)-1]
+		b.encoders[seriesID] = encoders
+		b.Unlock()
+		if len(encodersToFlush) == 0 {
+			b.Lock()
+			continue
+		}
+
+		var (
+			stream []byte
+			err    error
+		)
+		if len(encodersToFlush) > 1 {
+			streams := make([][]byte, 0, len(encodersToFlush))
+			for _, enc := range encodersToFlush {
+				streams = append(streams, enc.Bytes())
+			}
+			stream, err = encoding.MergeStreams(stream)
+		} else {
+			stream = encodersToFlush[0].Bytes()
+		}
+		if err != nil {
+			return err
+		}
+
+		// Write to fdb.
+		_, err = b.db.Transact(func(tr fdb.Transaction) (interface{}, error) {
+			metadataKey := metadataKey(seriesID)
+			metaBytes, err := tr.Get(metadataKey).Get()
+			if err != nil {
+				return nil, err
+			}
+
+			var metadata tsMetadata
+			if metaBytes == nil {
+				metadata = newTSMetadata()
+			} else {
+				// TODO(rartoul): Don't use JSON.
+				if err := json.Unmarshal(metaBytes, &metadata); err != nil {
+					return nil, err
+				}
+			}
+
+			var newChunkKey fdb.Key
+			if len(metadata.chunks) == 0 {
+				newChunkKey = tsChunkKey(seriesID, 0)
+				metadata.chunks = append(metadata.chunks, newChunkMetadata(
+					newChunkKey,
+					time.Unix(0, 0), // TODO(rartoul): Fill this in.
+					time.Unix(0, 0), // TODO(rartoul): Fill this in.
+					len(stream),
+				))
+			} else {
+				// TODO(rartoul): Compaction/merging logic here.
+				lastChunkIdx := len(metadata.chunks) - 1
+				newChunkKey = tsChunkKey(seriesID, lastChunkIdx)
+				metadata.chunks = append(metadata.chunks, newChunkMetadata(
+					newChunkKey,
+					time.Unix(0, 0), // TODO(rartoul): Fill this in.
+					time.Unix(0, 0), // TODO(rartoul): Fill this in.
+					len(stream),
+				))
+			}
+
+			newMetadataBytes, err := json.Marshal(metadata)
+			if err != nil {
+				return nil, err
+			}
+			tr.Set(metadataKey, newMetadataBytes)
+			tr.Set(newChunkKey, stream)
+			return nil, nil
+		})
+		if err != nil {
+			return err
+		}
+
+		// Re-acquire lock before allowing range to continue.
+		b.Lock()
+	}
+
+	return nil
+}
+
+func metadataKey(id string) fdb.Key {
+	// TODO(rartoul): Not sure if this is ideal key structure/
+	return tuple.Tuple{bufferKeyPrefix, id, metadataKeyPostfix}.Pack()
+}
+
+func tsChunkKey(id string, chunkNum int) fdb.Key {
+	return tuple.Tuple{bufferKeyPrefix, id, tsChunkKeyPrefix, chunkNum}.Pack()
 }

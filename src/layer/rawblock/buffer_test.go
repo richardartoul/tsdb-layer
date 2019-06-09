@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/apple/foundationdb/bindings/go/src/fdb"
 	"github.com/richardartoul/tsdb-layer/src/layer"
 
 	"github.com/stretchr/testify/require"
@@ -39,7 +40,7 @@ func TestBufferWriteRead(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.title, func(t *testing.T) {
-			buffer := NewBuffer()
+			buffer := NewBuffer(fdb.Database{})
 			writes := []layer.Write{}
 			for _, val := range tc.vals {
 				writes = append(

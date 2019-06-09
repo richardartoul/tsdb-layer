@@ -24,7 +24,7 @@ func NewLayer() layer.Layer {
 	return &rawBlock{
 		db:        db,
 		cl:        cl,
-		buffer:    NewBuffer(),
+		buffer:    NewBuffer(db),
 		bytesPool: newBytesPool(1024, 16000, 4096),
 	}
 }
