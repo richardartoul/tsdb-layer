@@ -48,6 +48,7 @@ func newChunkMetadata(key []byte, first, last time.Time, sizeBytes int) chunkMet
 type Buffer interface {
 	Write(writes []layer.Write) error
 	Read(id string) (encoding.MultiDecoder, bool, error)
+	Flush() error
 }
 
 type buffer struct {
