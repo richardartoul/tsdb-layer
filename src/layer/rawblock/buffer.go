@@ -16,6 +16,8 @@ const (
 	bufferKeyPrefix    = "b-"
 	metadataKeyPostfix = "-meta"
 	tsChunkKeyPrefix   = "-chunk-"
+
+	targetChunkSize = 4096
 )
 
 type tsMetadata struct {
@@ -175,15 +177,32 @@ func (b *buffer) Flush() error {
 					len(stream),
 				))
 			} else {
-				// TODO(rartoul): Compaction/merging logic here.
 				lastChunkIdx := len(metadata.chunks) - 1
-				newChunkKey = tsChunkKey(seriesID, lastChunkIdx)
-				metadata.chunks = append(metadata.chunks, newChunkMetadata(
-					newChunkKey,
-					time.Unix(0, 0), // TODO(rartoul): Fill this in.
-					time.Unix(0, 0), // TODO(rartoul): Fill this in.
-					len(stream),
-				))
+				lastChunk := metadata.chunks[lastChunkIdx]
+				// TODO(rartoul): Make compaction/merge logic more intelligent.
+				if lastChunk.sizeBytes+len(stream) <= targetChunkSize {
+					// Merge with last chunk.
+					newChunkKey = fdb.Key(lastChunk.key)
+					existingStream, err := tr.Get(newChunkKey).Get()
+					if err != nil {
+						return nil, err
+					}
+					stream, err = encoding.MergeStreams(existingStream, stream)
+					if err != nil {
+						return nil, err
+					}
+					// TODO(rartoul): Update first and last properties here as well.
+					metadata.chunks[lastChunkIdx].sizeBytes = len(stream)
+				} else {
+					// Insert new chunk.
+					newChunkKey = tsChunkKey(seriesID, lastChunkIdx)
+					metadata.chunks = append(metadata.chunks, newChunkMetadata(
+						newChunkKey,
+						time.Unix(0, 0), // TODO(rartoul): Fill this in.
+						time.Unix(0, 0), // TODO(rartoul): Fill this in.
+						len(stream),
+					))
+				}
 			}
 
 			newMetadataBytes, err := json.Marshal(metadata)
