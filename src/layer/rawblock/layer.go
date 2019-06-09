@@ -3,6 +3,7 @@ package rawblock
 import (
 	"encoding/binary"
 	"errors"
+	"log"
 	"math"
 	"sync"
 	"time"
@@ -21,10 +22,23 @@ func NewLayer() layer.Layer {
 		// TODO(rartoul): Clean this up
 		panic(err)
 	}
+	buffer := NewBuffer(db)
+
+	// TODO(rartoul): Fix this and integrate the lifecycle with commitlog
+	// truncation.
+	go func() {
+		for {
+			time.Sleep(10 * time.Second)
+			if err := buffer.Flush(); err != nil {
+				log.Printf("error flushing buffer: %v", err)
+			}
+		}
+	}()
+
 	return &rawBlock{
 		db:        db,
 		cl:        cl,
-		buffer:    NewBuffer(db),
+		buffer:    buffer,
 		bytesPool: newBytesPool(1024, 16000, 4096),
 	}
 }

@@ -2,6 +2,7 @@ package rawblock
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -217,8 +218,17 @@ func (b *buffer) Flush() error {
 			return err
 		}
 
-		// Re-acquire lock before allowing range to continue.
 		b.Lock()
+		encoders, ok := b.encoders[seriesID]
+		if !ok {
+			return errors.New("could not retrieve encoders for recently flushed series")
+		}
+		// TODO(rartoul): This logic works right now because the only thing that can
+		// trigger creating a new encoder for an existing series is a flush. Once there
+		// is support for out-of-order writes, this logic will need to change.
+		b.encoders[seriesID] = encoders[len(encoders)-1:]
+
+		// Hold the lock for the next iteration.
 	}
 
 	return nil
