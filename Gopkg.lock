@@ -2,12 +2,12 @@
 
 
 [[projects]]
-  digest = "1:9752dad5e89cd779096bf2477a4ded16bea7ac62de453c8d6b4bf841d51a8512"
+  digest = "1:b39cf81d5f440b9c0757a25058432d33af867e5201109bf53621356d9dab4b73"
   name = "github.com/apache/thrift"
   packages = ["lib/go/thrift"]
   pruneopts = "UT"
-  revision = "b2a4d4ae21c789b689dd162deb819665567f481c"
-  version = "0.10.0"
+  revision = "384647d290e2e4a55a14b1b7ef1b7e66293a2c33"
+  version = "v0.12.0"
 
 [[projects]]
   digest = "1:010ac780f94633dc91ef721a395c5768ace4456b4833dea5ad7c026802ff143e"
@@ -17,8 +17,8 @@
     "bindings/go/src/fdb/tuple",
   ]
   pruneopts = "UT"
-  revision = "bd6b10cbcee08910667194e6388733acd3b80549"
-  version = "6.1.8"
+  revision = "a6c09645bf9ec2f2c5a00839bcf17a37cec87fdb"
+  version = "6.1.9"
 
 [[projects]]
   digest = "1:d6afaeed1502aa28e80a4ed0981d570ad91b2579193404256ce672ed0a609e0d"
@@ -29,11 +29,12 @@
   version = "v1.0.0"
 
 [[projects]]
-  digest = "1:67b2a3a0c25ab8362819f93ff16f2f2f5c00abaf26f584641ce2482e676f28be"
+  digest = "1:998cf998358a303ac2430c386ba3fd3398477d6013153d3c6e11432765cc9ae6"
   name = "github.com/cespare/xxhash"
   packages = ["."]
   pruneopts = "UT"
-  revision = "48099fad606eafc26e3a569fad19ff510fff4df6"
+  revision = "3b82fb7d186719faeedd0c2864f868c74fbf79a1"
+  version = "v2.0.0"
 
 [[projects]]
   digest = "1:ffe9824d294da03b391f44e1ae8281281b4afc1bdaa9588c9097785e3af10cec"
@@ -79,7 +80,7 @@
   version = "v1.3.1"
 
 [[projects]]
-  digest = "1:af163bc4eb0724f0a22452400429ca6d21a22d28d0405f3669fcecf87d7fe73c"
+  digest = "1:73bea52c5e1bbd7d80166e9255183b6fd41cbae463f98a2bd32b7f58f7438975"
   name = "github.com/jhump/protoreflect"
   packages = [
     "desc",
@@ -89,7 +90,8 @@
     "internal",
   ]
   pruneopts = "UT"
-  revision = "e0795ed1d1ada047d01e90243863def21db467fc"
+  revision = "92269e4a44a442365a8824f1e184b8ddbca3ec7a"
+  version = "v1.4.1"
 
 [[projects]]
   digest = "1:f7b7cc4601639f90815fb2fe02b2775278a83b468d7dbbd800d861405de40d74"
@@ -277,12 +279,12 @@
   version = "v2.0.0"
 
 [[projects]]
-  digest = "1:3c1a69cdae3501bf75e76d0d86dc6f2b0a7421bc205c0cb7b96b19eed464a34d"
+  digest = "1:a5158647b553c61877aa9ae74f4015000294e47981e6b8b07525edcbb0747c81"
   name = "go.uber.org/atomic"
   packages = ["."]
   pruneopts = "UT"
-  revision = "1ea20fb1cbb1cc08cbd0d913a96dead89aa18289"
-  version = "v1.3.2"
+  revision = "df976f2515e274675050de7b3f42545de80594fd"
+  version = "v1.4.0"
 
 [[projects]]
   digest = "1:60bf2a5e347af463c42ed31a493d817f8a72f102543060ed992754e689805d1a"
@@ -318,7 +320,7 @@
     "protobuf/source_context",
   ]
   pruneopts = "UT"
-  revision = "fb225487d10142b5bcc35abfc6cb9a0609614976"
+  revision = "eb0b1bdb6ae60fcfc41b8d907b50dfb346112301"
 
 [solve-meta]
   analyzer-name = "dep"

@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "tsdb-layer.rpc";
+option java_outer_classname = "TSDBLayerProto";
+
+package tsdblayer;
+
+// Interface exported by the server.
+service TSDBLayer {
+	rpc WriteBatch(WriteBatchRequest) returns (Empty) {}
+	rpc ReadBatch(ReadBatchRequest) returns (ReadBatchResponse) {}
+}
+
+
+message WriteBatchRequest {
+	repeated WriteRequest batch = 1;
+}
+
+message ReadBatchRequest {
+	repeated ReadRequest batch = 1;
+}
+
+message ReadBatchResponse {
+	repeated ReadResponse batch = 1;
+}
+
+message WriteRequest {
+	string series_id = 1;
+	Datapoint datapoint = 2;
+}
+
+message ReadRequest {
+	// TODO(rartoul): Time ranges.
+	string series_id = 1;
+}
+
+message ReadResponse {
+	string series_id = 1;
+	repeated Datapoint datapoints = 2;
+}
+
+message Datapoint {
+	uint64 timestamp_nanos = 1;
+	double value = 2;
+}
+
+message Empty {}
+
