@@ -53,3 +53,5 @@ Another implementation that was attempted to solve the lack of compression in #1
 
 ### Design #3 (current) - Stateful TSDB using FoundationDB as the storage layer.
 
+TODO(rartoul): Outline current design.
+
