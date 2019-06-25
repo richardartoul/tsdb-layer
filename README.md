@@ -53,5 +53,11 @@ Another implementation that was attempted to solve the lack of compression in #1
 
 ### Design #3 (current) - Stateful TSDB using FoundationDB as the storage layer.
 
-TODO(rartoul): Outline current design.
+The current design is the most complicated but also the most efficient. The idea is to build a stateful (memory) system in front of FoundationDB. One way to explain this design is that it is the same as [M3DB](https://github.com/m3db/m3) except it uses fdb instead of a filesystem / disk. Another way to think of it is that the layer functions as the "memtable" and fdb is used for storing the commitlog and "sstables".
+
+Specifically as writes arrive into the system they are stored and compressed in-memory. In addition, they are written to fdb as part of a commitlog entry for durability. In the background, as compressed time series blocks accumulate in memory they are flushed to fdb as compressed blocks on a per time series basis.
+
+At first blush it would seem like this approach would have all of the same issues as designs #1 and #2 in terms of write throughput, however, fdb's write throughput limitations are mitigated in this case by batching multiple logical writes together into a single physical write in the form of a "commitlog chunk". This is possible because the commit log chunks don't need to be readable in an online manner. Their only purpose is to allow a node that has been replaced / restarted to recover any in-memory state that had not yet been flushed as compressed (readable) blocks.
+
+TODO(rartoul): Fill in the rest.
 
