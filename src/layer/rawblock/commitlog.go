@@ -27,6 +27,12 @@ const (
 	clStatusClosed
 )
 
+// truncationToken is a token that can be passed to the commitlog to truncate the commitlogs up to
+// a specific point. It should be treated as opaque by external callers.
+type truncationToken struct {
+	upTo tuple.Tuple
+}
+
 type Commitlog interface {
 	Write([]byte) error
 	Open() error
@@ -167,11 +173,9 @@ func (c *commitlog) Write(b []byte) error {
 	return currFlushOutcome.waitForFlush()
 }
 
-// TODO(rartoul): This should accept some kind of range or token to specify which
-// entries to clear.
-func (c *commitlog) Truncate() error {
+func (c *commitlog) Truncate(token truncationToken) error {
 	_, err := c.db.Transact(func(tr fdb.Transaction) (interface{}, error) {
-		tr.ClearRange(fdb.KeyRange{Begin: tuple.Tuple{commitLogKey}, End: fdb.Key{0xFF}})
+		tr.ClearRange(fdb.KeyRange{Begin: tuple.Tuple{commitLogKey}, End: token.upTo})
 		return nil, nil
 	})
 
@@ -217,5 +221,6 @@ func (c *commitlog) flush() error {
 }
 
 func (c *commitlog) nextKey() tuple.Tuple {
+	// TODO(rartoul): This should have some kind of host identifier in it.
 	return tuple.Tuple{commitLogKey, time.Now().UnixNano()}
 }
