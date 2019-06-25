@@ -48,6 +48,7 @@ func NewCommitlogOptions() CommitlogOptions {
 }
 
 type flushOutcome struct {
+	lastID tuple.Tuple
 	err    error
 	doneCh chan struct{}
 }
@@ -63,7 +64,8 @@ func (f *flushOutcome) waitForFlush() error {
 	return f.err
 }
 
-func (f *flushOutcome) notify(err error) {
+func (f *flushOutcome) notify(lastID tuple.Tuple, err error) {
+	f.lastID = lastID
 	f.err = err
 	close(f.doneCh)
 }
@@ -190,11 +192,14 @@ func (c *commitlog) flush() error {
 	c.flushOutcome = newFlushOutcome()
 	c.Unlock()
 
-	_, err := c.db.Transact(func(tr fdb.Transaction) (interface{}, error) {
+	key, err := c.db.Transact(func(tr fdb.Transaction) (interface{}, error) {
 		// TODO(rartoul): Need to be smarter about this because don't want to actually
 		// break chunks across writes I.E every call to WriteBatch() should end up
 		// in one key so that each key is a complete unit.
-		startIdx := 0
+		var (
+			startIdx = 0
+			key      tuple.Tuple
+		)
 		for startIdx < len(toWrite) {
 			key := c.nextKey()
 			endIdx := startIdx + c.opts.IdealBatchSize
@@ -205,9 +210,9 @@ func (c *commitlog) flush() error {
 			startIdx = endIdx
 		}
 
-		return nil, nil
+		return key, nil
 	})
-	currFlushOutcome.notify(err)
+	currFlushOutcome.notify(key.(tuple.Tuple), err)
 	return err
 }
 
