@@ -205,7 +205,7 @@ func (c *commitlog) flush() error {
 			key      tuple.Tuple
 		)
 		for startIdx < len(toWrite) {
-			key := c.nextKey()
+			key = c.nextKey()
 			endIdx := startIdx + c.opts.IdealBatchSize
 			if endIdx > len(toWrite) {
 				endIdx = len(toWrite)
