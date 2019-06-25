@@ -51,7 +51,7 @@ Another implementation that was attempted to solve the lack of compression in #1
 
 1. 1. FoundationDB is limited in the number of writes/s it can perform, especially against the SSD engine. Even with writes batched together into the same transaction, benchmarking on a 2017 i7 macbook pro demonstrated that the system struggled to handle more than a few thousand datapoints/s. In addition, each write required a prior read which limited throughput even further.
 
-### Design #3 (current) - Stateful TSDB using FoundationDB as the storage layer.
+## Design #3 (current) - Stateful TSDB using FoundationDB as the storage layer.
 
 The current design is the most complicated but also the most efficient. The idea is to build a stateful (memory) system in front of FoundationDB. One way to explain this design is that it is the same as [M3DB](https://github.com/m3db/m3) except it uses fdb instead of a filesystem / disk. Another way to think of it is that the layer functions as the "memtable" and fdb is used for storing the commitlog and "sstables".
 
