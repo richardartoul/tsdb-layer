@@ -41,7 +41,7 @@ type Commitlog interface {
 	Close() error
 }
 
-// CommitogOptions encapsulates the options for the commit log.
+// CommitlogOptions encapsulates the options for the commit log.
 type CommitlogOptions struct {
 	IdealBatchSize  int
 	MaxPendingBytes int
