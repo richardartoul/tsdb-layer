@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"sync"
 	"time"
 
@@ -91,7 +92,7 @@ type commitlog struct {
 	prevBatch     []byte
 	currBatch     []byte
 	lastFlushTime time.Time
-	lastIdx       int
+	lastIdx       int64
 	flushOutcome  *flushOutcome
 	closeCh       chan struct{}
 	closeDoneCh   chan error
@@ -127,6 +128,7 @@ func (c *commitlog) Open() error {
 		existingIdx = -1
 	}
 	c.lastIdx = existingIdx
+	fmt.Println(c.lastIdx)
 
 	c.status = clStatusOpen
 
@@ -272,12 +274,12 @@ func (c *commitlog) nextKey() tuple.Tuple {
 	return nextKey
 }
 
-func (c *commitlog) getLatestExistingIndex() (int, bool, error) {
+func (c *commitlog) getLatestExistingIndex() (int64, bool, error) {
 	key, err := c.db.Transact(func(tr fdb.Transaction) (interface{}, error) {
 		var (
 			rangeResult = tr.GetRange(fdb.KeyRange{
-				Begin: tuple.Tuple{commitLogKey},
-				End:   tuple.Tuple{commitLogKey, 0xFF}}, fdb.RangeOptions{})
+				Begin: tuple.Tuple{commitLogKey, 0},
+				End:   tuple.Tuple{commitLogKey, math.MaxInt64}}, fdb.RangeOptions{})
 			iter = rangeResult.Iterator()
 			key  fdb.Key
 		)
@@ -312,9 +314,9 @@ func (c *commitlog) getLatestExistingIndex() (int, bool, error) {
 			"malformed commitlog key tuple, expected len: %d, but was: %d, raw: %v",
 			commitLogKeyTupleLength, len(keyTuple), key)
 	}
-	idx, ok := keyTuple[1].(int)
+	idx, ok := keyTuple[1].(int64)
 	if !ok {
-		return -1, false, errors.New("malformed commitlog key tuple, expected second value to be of type int")
+		return -1, false, errors.New("malformed commitlog key tuple, expected second value to be of type int64")
 	}
 	return idx, true, nil
 }
