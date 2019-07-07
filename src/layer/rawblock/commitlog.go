@@ -16,7 +16,8 @@ const (
 	defaultMaxPendingBytes = 10000000
 	defaultFlushEvery      = time.Millisecond
 
-	commitLogKey = "commitlog-"
+	commitLogKey            = "commitlog-"
+	commitLogKeyTupleLength = 2
 )
 
 type clStatus int
@@ -33,18 +34,21 @@ type truncationToken struct {
 	upTo tuple.Tuple
 }
 
+// Commitlog is the interface for an FDB-backed commitlog.
 type Commitlog interface {
 	Write([]byte) error
 	Open() error
 	Close() error
 }
 
+// CommitogOptions encapsulates the options for the commit log.
 type CommitlogOptions struct {
 	IdealBatchSize  int
 	MaxPendingBytes int
 	FlushEvery      time.Duration
 }
 
+// NewCommitlogOptions creates a new CommitlogOptions.
 func NewCommitlogOptions() CommitlogOptions {
 	return CommitlogOptions{
 		IdealBatchSize:  defaultBatchSize,
@@ -86,12 +90,14 @@ type commitlog struct {
 	prevBatch     []byte
 	currBatch     []byte
 	lastFlushTime time.Time
+	lastIdx       int
 	flushOutcome  *flushOutcome
 	closeCh       chan struct{}
 	closeDoneCh   chan error
 	opts          CommitlogOptions
 }
 
+// NewCommitlog creates a new commitlog.
 func NewCommitlog(db fdb.Database, opts CommitlogOptions) Commitlog {
 	return &commitlog{
 		status:       clStatusUnopened,
@@ -105,12 +111,23 @@ func NewCommitlog(db fdb.Database, opts CommitlogOptions) Commitlog {
 
 func (c *commitlog) Open() error {
 	c.Lock()
+	defer c.Unlock()
 	if c.status != clStatusUnopened {
-		c.Unlock()
 		return errors.New("commitlog cannot be opened more than once")
 	}
+
+	// "Bootstrap" the latest existing index to maintain a monotonically increasing
+	// value for the commitlog chunk indices.
+	existingIdx, ok, err := c.getLatestExistingIndex()
+	if err != nil {
+		return err
+	}
+	if !ok {
+		existingIdx = -1
+	}
+	c.lastIdx = existingIdx
+
 	c.status = clStatusOpen
-	c.Unlock()
 
 	go func() {
 		for {
@@ -251,6 +268,55 @@ func (c *commitlog) flush() error {
 
 func (c *commitlog) nextKey() tuple.Tuple {
 	// TODO(rartoul): This should have some kind of host identifier in it.
-	// TODO(rartoul): Make this consecutively increasing.
-	return tuple.Tuple{commitLogKey, time.Now().UnixNano()}
+	nextKey := tuple.Tuple{commitLogKey, c.lastIdx + 1}
+	// Safe to update this optimistically since even if the write ends up failing
+	// its ok to have "gaps".
+	//
+	// Also safe to do this without any locking as this function is always called
+	// in a single-threaded manner.
+	c.lastIdx++
+	return nextKey
+}
+
+func (c *commitlog) getLatestExistingIndex() (int, bool, error) {
+	key, err := c.db.Transact(func(tr fdb.Transaction) (interface{}, error) {
+		rangeResult := tr.GetRange(fdb.KeyRange{Begin: tuple.Tuple{commitLogKey}, End: tuple.Tuple{commitLogKey, 0xFF}}, fdb.RangeOptions{})
+
+		var key fdb.Key
+		for rangeResult.Advance() {
+			curr, err := rangeResult.Get()
+			if err != nil {
+				return nil, err
+			}
+			key = curr.Key
+		}
+
+		if key == nil {
+			return nil, nil
+		}
+		return key, nil
+	})
+
+	if err != nil {
+		return -1, false, err
+	}
+	if key == nil {
+		return -1, false, nil
+	}
+
+	keyTuple, err := tuple.Unpack(key)
+	if err != nil {
+		return -1, false, err
+	}
+
+	if len(keyTuple) != commitLogKeyTupleLength {
+		return -1, false, errors.New(
+			"malformed commitlog key tuple, expected len: %d, but was: %d, raw: %v",
+			commitLogKeyTupleLength, len(keyTuple), key)
+	}
+	idx, ok := keyTuple[1].(int)
+	if !ok {
+		return -1, false, errors.New("malformed commitlog key tuple, expected second value to be of type int")
+	}
+	return idx, true, nil
 }
