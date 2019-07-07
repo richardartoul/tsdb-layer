@@ -140,13 +140,6 @@ func (c *commitlog) Open() error {
 			default:
 			}
 			time.Sleep(time.Millisecond)
-			if i%10 == 0 {
-				// TODO(rartoul): Remove this.
-				// Truncate regularly to measure performance impact.
-				if err := c.Truncate(truncationToken{}); err != nil {
-					log.Printf("error truncating commitlog: %v", err)
-				}
-			}
 			if err := c.flush(); err != nil {
 				log.Printf("error flushing commitlog: %v", err)
 			}
