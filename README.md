@@ -49,7 +49,7 @@ Another implementation that was attempted to solve the lack of compression in #1
 
 ### Cons
 
-1. 1. FoundationDB is limited in the number of writes/s it can perform, especially against the SSD engine. Even with writes batched together into the same transaction, benchmarking on a 2017 i7 macbook pro demonstrated that the system struggled to handle more than a few thousand datapoints/s. In addition, each write required a prior read which limited throughput even further.
+1. FoundationDB is limited in the number of writes/s it can perform, especially against the SSD engine. Even with writes batched together into the same transaction, benchmarking on a 2017 i7 macbook pro demonstrated that the system struggled to handle more than a few thousand datapoints/s. In addition, each write required a prior read which limited throughput even further.
 
 ## Design #3 (current) - Stateful TSDB using FoundationDB as the storage layer.
 
