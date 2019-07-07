@@ -2,6 +2,7 @@ package rawblock
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -142,7 +143,7 @@ func (c *commitlog) Open() error {
 			if i%10 == 0 {
 				// TODO(rartoul): Remove this.
 				// Truncate regularly to measure performance impact.
-				if err := c.Truncate(); err != nil {
+				if err := c.Truncate(truncationToken{}); err != nil {
 					log.Printf("error truncating commitlog: %v", err)
 				}
 			}
@@ -212,7 +213,7 @@ func (c *commitlog) WaitForRotation() (truncationToken, error) {
 	c.Lock()
 	if c.status != clStatusOpen {
 		c.Unlock()
-		return errors.New("cannot wait for commit log rotation if commit log is not open")
+		return truncationToken{}, errors.New("cannot wait for commit log rotation if commit log is not open")
 	}
 	currFlushOutcome := c.flushOutcome
 	c.Unlock()
@@ -280,11 +281,15 @@ func (c *commitlog) nextKey() tuple.Tuple {
 
 func (c *commitlog) getLatestExistingIndex() (int, bool, error) {
 	key, err := c.db.Transact(func(tr fdb.Transaction) (interface{}, error) {
-		rangeResult := tr.GetRange(fdb.KeyRange{Begin: tuple.Tuple{commitLogKey}, End: tuple.Tuple{commitLogKey, 0xFF}}, fdb.RangeOptions{})
-
-		var key fdb.Key
-		for rangeResult.Advance() {
-			curr, err := rangeResult.Get()
+		var (
+			rangeResult = tr.GetRange(fdb.KeyRange{
+				Begin: tuple.Tuple{commitLogKey},
+				End:   tuple.Tuple{commitLogKey, 0xFF}}, fdb.RangeOptions{})
+			iter = rangeResult.Iterator()
+			key  fdb.Key
+		)
+		for iter.Advance() {
+			curr, err := iter.Get()
 			if err != nil {
 				return nil, err
 			}
@@ -304,13 +309,13 @@ func (c *commitlog) getLatestExistingIndex() (int, bool, error) {
 		return -1, false, nil
 	}
 
-	keyTuple, err := tuple.Unpack(key)
+	keyTuple, err := tuple.Unpack(key.(fdb.Key))
 	if err != nil {
 		return -1, false, err
 	}
 
 	if len(keyTuple) != commitLogKeyTupleLength {
-		return -1, false, errors.New(
+		return -1, false, fmt.Errorf(
 			"malformed commitlog key tuple, expected len: %d, but was: %d, raw: %v",
 			commitLogKeyTupleLength, len(keyTuple), key)
 	}
