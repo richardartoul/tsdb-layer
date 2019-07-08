@@ -123,16 +123,22 @@ func encodersToDecoders(encs []encoding.Encoder) []encoding.Decoder {
 }
 
 func (b *buffer) Flush() error {
+	// Manually control locking so map can be iterated while still being concurrently
+	// accessed.
 	b.Lock()
 	for seriesID, encoders := range b.encoders {
+		if len(encoders) == 0 {
+			continue
+		}
+
+		// Append a new encoder to the list of existing encoders. Only the last encoder
+		// in the list is ever written to so this effectively renders all previous
+		// encoders immutable which can be taken advantage of to flush them without
+		// holding a lock on the entire map.
 		encoders = append(encoders, encoding.NewEncoder())
 		encodersToFlush := encoders[:len(encoders)-1]
 		b.encoders[seriesID] = encoders
 		b.Unlock()
-		if len(encodersToFlush) == 0 {
-			b.Lock()
-			continue
-		}
 
 		var (
 			stream []byte
@@ -222,11 +228,17 @@ func (b *buffer) Flush() error {
 		b.Lock()
 		encoders, ok := b.encoders[seriesID]
 		if !ok {
+			b.Unlock()
 			return errors.New("could not retrieve encoders for recently flushed series")
 		}
+		// Now that all of the immutable encoders have been flushed, they can be removed
+		// from the list of existing encoders because they can now be read from FDB directly.
+		//
 		// TODO(rartoul): This logic works right now because the only thing that can
-		// trigger creating a new encoder for an existing series is a flush. Once there
-		// is support for out-of-order writes, this logic will need to change.
+		// trigger creating a new encoder for an existing series is a flush and because flushing
+		// is single-threaded. Once there is support for out-of-order writes, this logic will need
+		// to change since there will be no way to determine if all of the encoder except the last
+		// have been flushed yet (or could just force out of order writes to merge on demand?).
 		b.encoders[seriesID] = encoders[len(encoders)-1:]
 
 		// Hold the lock for the next iteration.
