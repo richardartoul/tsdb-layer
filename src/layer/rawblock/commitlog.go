@@ -228,8 +228,11 @@ func (c *commitlog) flush() error {
 	if !(time.Since(c.lastFlushTime) >= c.opts.FlushEvery && len(c.currBatch) > 0) {
 		c.Unlock()
 		// Notify anyways so that the WaitForRotation() API can function.
-		// TODO(rartoul): This should actually have the last ID in it.
-		currFlushOutcome.notify(nil, nil)
+		var lastKey tuple.Tuple
+		if c.lastIdx >= 0 {
+			lastKey = commitlogKeyFromIdx(c.lastIdx)
+		}
+		currFlushOutcome.notify(lastKey, nil)
 		return nil
 	}
 
@@ -264,7 +267,7 @@ func (c *commitlog) flush() error {
 
 func (c *commitlog) nextKey() tuple.Tuple {
 	// TODO(rartoul): This should have some kind of host identifier in it.
-	nextKey := tuple.Tuple{commitLogKey, c.lastIdx + 1}
+	nextKey := commitlogKeyFromIdx(c.lastIdx + 1)
 	// Safe to update this optimistically since even if the write ends up failing
 	// its ok to have "gaps".
 	//
@@ -319,4 +322,8 @@ func (c *commitlog) getLatestExistingIndex() (int64, bool, error) {
 		return -1, false, errors.New("malformed commitlog key tuple, expected second value to be of type int64")
 	}
 	return idx, true, nil
+}
+
+func commitlogKeyFromIdx(idx int64) tuple.Tuple {
+	return tuple.Tuple{commitLogKey, c.lastIdx + 1}
 }
