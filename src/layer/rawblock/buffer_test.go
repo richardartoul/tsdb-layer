@@ -54,22 +54,29 @@ func TestBufferWriteRead(t *testing.T) {
 			}
 			require.NoError(t, buffer.Write(writes))
 
-			multiDec, ok, err := buffer.Read(testID)
-			require.NoError(t, err)
-			require.True(t, ok)
+			assertReadFn := func() {
+				multiDec, ok, err := buffer.Read(testID)
+				require.NoError(t, err)
+				require.True(t, ok)
 
-			i := 0
-			for multiDec.Next() {
-				currT, currV := multiDec.Current()
-				require.True(
-					t,
-					tc.vals[i].timestamp.Equal(currT),
-					fmt.Sprintf("expected %s but got %s", tc.vals[i].timestamp.String(), currT.String()))
-				require.Equal(t, tc.vals[i].value, currV)
-				i++
+				i := 0
+				for multiDec.Next() {
+					currT, currV := multiDec.Current()
+					require.True(
+						t,
+						tc.vals[i].timestamp.Equal(currT),
+						fmt.Sprintf("expected %s but got %s", tc.vals[i].timestamp.String(), currT.String()))
+					require.Equal(t, tc.vals[i].value, currV)
+					i++
+				}
+				require.NoError(t, multiDec.Err())
+				require.Equal(t, len(tc.vals), i)
 			}
-			require.NoError(t, multiDec.Err())
-			require.Equal(t, len(tc.vals), i)
+
+			// Ensure reads work correctly before and after flushing.
+			assertReadFn()
+			require.NoError(t, buffer.Flush())
+			assertReadFn()
 		})
 	}
 }

@@ -325,5 +325,5 @@ func (c *commitlog) getLatestExistingIndex() (int64, bool, error) {
 }
 
 func commitlogKeyFromIdx(idx int64) tuple.Tuple {
-	return tuple.Tuple{commitLogKey, c.lastIdx + 1}
+	return tuple.Tuple{commitLogKey, idx + 1}
 }
