@@ -157,6 +157,7 @@ func encodersToDecoders(encs []encoding.Encoder) []encoding.Decoder {
 	return decs
 }
 
+// TODO(rartoul): This function should probably ratelimit itself.
 func (b *buffer) Flush() error {
 	// Manually control locking so map can be iterated while still being concurrently
 	// accessed.
