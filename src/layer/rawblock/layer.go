@@ -2,7 +2,6 @@ package rawblock
 
 import (
 	"encoding/binary"
-	"errors"
 	"log"
 	"math"
 	"sync"
@@ -66,7 +65,8 @@ func (l *rawBlock) WriteBatch(writes []layer.Write) error {
 }
 
 func (l *rawBlock) Read(id string) (encoding.Decoder, error) {
-	return nil, errors.New("not-implemented")
+	decoder, _, err := l.buffer.Read(id)
+	return decoder, err
 }
 
 // TODO(rartoul): Add clean shutdown logic.
