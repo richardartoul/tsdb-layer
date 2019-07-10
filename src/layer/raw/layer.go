@@ -40,6 +40,6 @@ func (l *raw) WriteBatch(writes []layer.Write) error {
 	return err
 }
 
-func (l *raw) Read(id string) (encoding.Decoder, error) {
+func (l *raw) Read(id string) (encoding.ReadableDecoder, error) {
 	return nil, errors.New("not-implemented")
 }

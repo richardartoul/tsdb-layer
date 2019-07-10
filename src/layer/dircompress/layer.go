@@ -126,7 +126,7 @@ func (l *directCompress) WriteBatch(writes []layer.Write) error {
 	return nil
 }
 
-func (l *directCompress) Read(id string) (encoding.Decoder, error) {
+func (l *directCompress) Read(id string) (encoding.ReadableDecoder, error) {
 	stream, err := l.db.Transact(func(tr fdb.Transaction) (interface{}, error) {
 		var (
 			metadataKey    = newTimeseriesMetadataKeyFromID(id)

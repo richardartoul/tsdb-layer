@@ -22,7 +22,7 @@ var (
 	batchSizeFlag   = flag.Int("batchSize", 8, "client batch size")
 	numWorkersFlag  = flag.Int("numWorkers", 100, "number of concurrent workers")
 	durationFlag    = flag.Duration("duration", time.Minute, "duration to run the load test")
-	layerEngineFlag = flag.String("layerEngine", "direct-compress", "layer engine to benchmark")
+	layerEngineFlag = flag.String("layerEngine", "raw-block", "layer engine to benchmark")
 )
 
 func main() {
