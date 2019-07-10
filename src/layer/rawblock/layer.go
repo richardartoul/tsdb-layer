@@ -13,6 +13,10 @@ import (
 	"github.com/richardartoul/tsdb-layer/src/layer"
 )
 
+const (
+	persistLoopInterval = 10 * time.Second
+)
+
 func NewLayer() layer.Layer {
 	fdb.MustAPIVersion(610)
 	// TODO(rartoul): Make this configurable.
@@ -24,23 +28,14 @@ func NewLayer() layer.Layer {
 	}
 	buffer := NewBuffer(db)
 
-	// TODO(rartoul): Fix this and integrate the lifecycle with commitlog
-	// truncation.
-	go func() {
-		for {
-			time.Sleep(10 * time.Second)
-			if err := buffer.Flush(); err != nil {
-				log.Printf("error flushing buffer: %v", err)
-			}
-		}
-	}()
-
-	return &rawBlock{
+	l := &rawBlock{
 		db:        db,
 		cl:        cl,
 		buffer:    buffer,
 		bytesPool: newBytesPool(1024, 16000, 4096),
 	}
+	go l.startPersistLoop()
+	return l
 }
 
 type rawBlock struct {
@@ -72,6 +67,28 @@ func (l *rawBlock) WriteBatch(writes []layer.Write) error {
 
 func (l *rawBlock) Read(id string) (encoding.Decoder, error) {
 	return nil, errors.New("not-implemented")
+}
+
+// TODO(rartoul): Add clean shutdown logic.
+func (l *rawBlock) startPersistLoop() {
+	for {
+		// Prevent excessive activity when there are no incoming writes.
+		time.Sleep(persistLoopInterval)
+
+		truncToken, err := l.cl.WaitForRotation()
+		if err != nil {
+			log.Printf("error waiting for commitlog rotation: %v", err)
+			continue
+		}
+		if err := l.buffer.Flush(); err != nil {
+			log.Printf("error flushing buffer: %v", err)
+			continue
+		}
+		if err := l.cl.Truncate(truncToken); err != nil {
+			log.Printf("error truncating commitlog: %v", err)
+			continue
+		}
+	}
 }
 
 // TODO(rartoul): Bucketized would be more efficient
