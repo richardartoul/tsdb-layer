@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	persistLoopInterval = 10 * time.Second
+	persistLoopInterval = 100 * time.Millisecond
 )
 
 func NewLayer() layer.Layer {

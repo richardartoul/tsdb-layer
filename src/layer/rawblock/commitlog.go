@@ -66,6 +66,7 @@ type flushOutcome struct {
 	// that there was no data to flush. This is useful because it
 	// enables the WaitForRotation() API.
 	lastID tuple.Tuple
+	nextID tuple.Tuple
 	err    error
 	doneCh chan struct{}
 }
@@ -81,8 +82,9 @@ func (f *flushOutcome) waitForFlush() error {
 	return f.err
 }
 
-func (f *flushOutcome) notify(lastID tuple.Tuple, err error) {
+func (f *flushOutcome) notify(lastID, nextID tuple.Tuple, err error) {
 	f.lastID = lastID
+	f.nextID = nextID
 	f.err = err
 	close(f.doneCh)
 }
@@ -218,7 +220,8 @@ func (c *commitlog) WaitForRotation() (truncationToken, error) {
 		return truncationToken{}, err
 	}
 
-	return truncationToken{upTo: currFlushOutcome.lastID}, nil
+	// nextID instead of lastID because fdb clear ranges are exclusive on the end.
+	return truncationToken{upTo: currFlushOutcome.nextID}, nil
 }
 
 func (c *commitlog) flush() error {
@@ -226,14 +229,18 @@ func (c *commitlog) flush() error {
 	currFlushOutcome := c.flushOutcome
 	c.flushOutcome = newFlushOutcome()
 
+	var (
+		lastKey tuple.Tuple
+		nextKey tuple.Tuple
+	)
 	if !(time.Since(c.lastFlushTime) >= c.opts.FlushEvery && len(c.currBatch) > 0) {
 		c.Unlock()
 		// Notify anyways so that the WaitForRotation() API can function.
-		var lastKey tuple.Tuple
 		if c.lastIdx >= 0 {
 			lastKey = commitlogKeyFromIdx(c.lastIdx)
+			nextKey = commitlogKeyFromIdx(c.lastIdx + 1)
 		}
-		currFlushOutcome.notify(lastKey, nil)
+		currFlushOutcome.notify(lastKey, nextKey, nil)
 		return nil
 	}
 
@@ -242,27 +249,25 @@ func (c *commitlog) flush() error {
 	c.currBatch = c.currBatch[:0]
 	c.Unlock()
 
-	key, err := c.db.Transact(func(tr fdb.Transaction) (interface{}, error) {
+	_, err := c.db.Transact(func(tr fdb.Transaction) (interface{}, error) {
 		// TODO(rartoul): Need to be smarter about this because don't want to actually
 		// break chunks across writes I.E every call to WriteBatch() should end up
 		// in one key so that each key is a complete unit.
-		var (
-			startIdx = 0
-			key      tuple.Tuple
-		)
+		startIdx := 0
 		for startIdx < len(toWrite) {
-			key = c.nextKey()
+			lastKey = c.nextKey()
+			nextKey = commitlogKeyFromIdx(c.lastIdx + 1)
 			endIdx := startIdx + c.opts.IdealBatchSize
 			if endIdx > len(toWrite) {
 				endIdx = len(toWrite)
 			}
-			tr.Set(key, toWrite[startIdx:endIdx])
+			tr.Set(lastKey, toWrite[startIdx:endIdx])
 			startIdx = endIdx
 		}
 
-		return key, nil
+		return nil, nil
 	})
-	currFlushOutcome.notify(key.(tuple.Tuple), err)
+	currFlushOutcome.notify(lastKey, nextKey, err)
 	return err
 }
 
@@ -325,6 +330,11 @@ func (c *commitlog) getLatestExistingIndex() (int64, bool, error) {
 	return idx, true, nil
 }
 
+type commitlogKey struct {
+	index int
+}
+
+// func (k *commitLogKey)
 func commitlogKeyFromIdx(idx int64) tuple.Tuple {
-	return tuple.Tuple{commitLogKey, idx + 1}
+	return tuple.Tuple{commitLogKey, idx}
 }
