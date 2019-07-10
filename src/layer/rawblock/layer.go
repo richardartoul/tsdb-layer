@@ -64,7 +64,7 @@ func (l *rawBlock) WriteBatch(writes []layer.Write) error {
 	return err
 }
 
-func (l *rawBlock) Read(id string) (encoding.Decoder, error) {
+func (l *rawBlock) Read(id string) (encoding.ReadableDecoder, error) {
 	decoder, _, err := l.buffer.Read(id)
 	return decoder, err
 }

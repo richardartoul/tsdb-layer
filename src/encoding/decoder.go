@@ -13,11 +13,14 @@ import (
 )
 
 type Decoder interface {
+	ReadableDecoder
+	Reset(b []byte)
+}
+
+type ReadableDecoder interface {
 	Next() bool
 	Current() (time.Time, float64)
 	Err() error
-
-	Reset(b []byte)
 }
 
 type decoder struct {

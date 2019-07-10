@@ -6,10 +6,7 @@ import (
 )
 
 type MultiDecoder interface {
-	Next() bool
-	Current() (time.Time, float64)
-	Err() error
-
+	ReadableDecoder
 	Reset(decs []Decoder)
 }
 

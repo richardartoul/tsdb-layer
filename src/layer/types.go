@@ -15,5 +15,5 @@ type Write struct {
 type Layer interface {
 	Write(id string, timestamp time.Time, value float64) error
 	WriteBatch(writes []Write) error
-	Read(id string) (encoding.Decoder, error)
+	Read(id string) (encoding.ReadableDecoder, error)
 }
