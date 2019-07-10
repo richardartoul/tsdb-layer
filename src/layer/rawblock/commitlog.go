@@ -130,7 +130,6 @@ func (c *commitlog) Open() error {
 		existingIdx = -1
 	}
 	c.lastIdx = existingIdx
-	fmt.Println(c.lastIdx)
 
 	c.status = clStatusOpen
 

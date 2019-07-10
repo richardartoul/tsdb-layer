@@ -52,7 +52,6 @@ func main() {
 	fmt.Println("    batchSize:", batchSize)
 	fmt.Println("    numWorkers:", numWorkers)
 	fmt.Println("    duration:", duration)
-
 	var layerClient layer.Layer
 	switch layerEngine {
 	case "direct-compress":
@@ -62,8 +61,9 @@ func main() {
 	case "raw-block":
 		layerClient = rawblock.NewLayer()
 	default:
-		log.Fatalf("invalid layer engine: ", layerEngine)
+		log.Fatalf("invalid layer engine: %s", layerEngine)
 	}
+
 	seriesIDs := make([]string, 0, numSeries)
 	for i := 0; i < numSeries; i++ {
 		seriesIDs = append(seriesIDs, fmt.Sprintf("%s-%d", randomString(20), i))

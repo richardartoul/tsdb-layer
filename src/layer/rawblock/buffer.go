@@ -117,7 +117,6 @@ func (b *buffer) Read(id string) (encoding.MultiDecoder, bool, error) {
 			return nil, err
 		}
 
-		fmt.Println(metadata)
 		for _, chunk := range metadata.Chunks {
 			chunkBytes, err := tr.Get(fdb.Key(chunk.Key)).Get()
 			if err != nil {
