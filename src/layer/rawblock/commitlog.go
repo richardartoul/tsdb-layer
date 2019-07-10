@@ -39,9 +39,10 @@ type truncationToken struct {
 // Commitlog is the interface for an FDB-backed commitlog.
 type Commitlog interface {
 	Write([]byte) error
-	WaitForRotation() (truncationToken, error)
 	Open() error
 	Close() error
+	WaitForRotation() (truncationToken, error)
+	Truncate(token truncationToken) error
 }
 
 // CommitlogOptions encapsulates the options for the commit log.
