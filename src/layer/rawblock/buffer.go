@@ -22,7 +22,7 @@ const (
 )
 
 type tsMetadata struct {
-	chunks []chunkMetadata
+	Chunks []chunkMetadata
 }
 
 func newTSMetadata() tsMetadata {
@@ -30,18 +30,18 @@ func newTSMetadata() tsMetadata {
 }
 
 type chunkMetadata struct {
-	key       []byte
-	first     time.Time
-	last      time.Time
-	sizeBytes int
+	Key       []byte
+	First     time.Time
+	Last      time.Time
+	SizeBytes int
 }
 
 func newChunkMetadata(key []byte, first, last time.Time, sizeBytes int) chunkMetadata {
 	return chunkMetadata{
-		key:       key,
-		first:     first,
-		last:      last,
-		sizeBytes: sizeBytes,
+		Key:       key,
+		First:     first,
+		Last:      last,
+		SizeBytes: sizeBytes,
 	}
 }
 
@@ -101,14 +101,49 @@ func (b *buffer) Write(writes []layer.Write) error {
 }
 
 func (b *buffer) Read(id string) (encoding.MultiDecoder, bool, error) {
+	var decoders []encoding.Decoder
+	_, err := b.db.Transact(func(tr fdb.Transaction) (interface{}, error) {
+		metadataKey := metadataKey(id)
+		metaBytes, err := tr.Get(metadataKey).Get()
+		if err != nil {
+			return nil, err
+		}
+		if metaBytes == nil {
+			return nil, nil
+		}
+
+		var metadata tsMetadata
+		if err := json.Unmarshal(metaBytes, &metadata); err != nil {
+			return nil, err
+		}
+
+		fmt.Println(metadata)
+		for _, chunk := range metadata.Chunks {
+			chunkBytes, err := tr.Get(fdb.Key(chunk.Key)).Get()
+			if err != nil {
+				return nil, err
+			}
+			dec := encoding.NewDecoder()
+			dec.Reset(chunkBytes)
+			decoders = append(decoders, dec)
+		}
+		return nil, nil
+	})
+	if err != nil {
+		return nil, false, err
+	}
+
 	encoders, ok := b.encoders[id]
-	if !ok {
+	if ok {
+		decoders = append(decoders, encodersToDecoders(encoders)...)
+	}
+
+	if len(decoders) == 0 {
 		return nil, false, nil
 	}
 
-	decs := encodersToDecoders(encoders)
 	multiDec := encoding.NewMultiDecoder()
-	multiDec.Reset(decs)
+	multiDec.Reset(decoders)
 	return multiDec, true, nil
 }
 
@@ -176,21 +211,21 @@ func (b *buffer) Flush() error {
 			}
 
 			var newChunkKey fdb.Key
-			if len(metadata.chunks) == 0 {
+			if len(metadata.Chunks) == 0 {
 				newChunkKey = tsChunkKey(seriesID, 0)
-				metadata.chunks = append(metadata.chunks, newChunkMetadata(
+				metadata.Chunks = append(metadata.Chunks, newChunkMetadata(
 					newChunkKey,
 					time.Unix(0, 0), // TODO(rartoul): Fill this in.
 					time.Unix(0, 0), // TODO(rartoul): Fill this in.
 					len(stream),
 				))
 			} else {
-				lastChunkIdx := len(metadata.chunks) - 1
-				lastChunk := metadata.chunks[lastChunkIdx]
+				lastChunkIdx := len(metadata.Chunks) - 1
+				lastChunk := metadata.Chunks[lastChunkIdx]
 				// TODO(rartoul): Make compaction/merge logic more intelligent.
-				if lastChunk.sizeBytes+len(stream) <= targetChunkSize {
+				if lastChunk.SizeBytes+len(stream) <= targetChunkSize {
 					// Merge with last chunk.
-					newChunkKey = fdb.Key(lastChunk.key)
+					newChunkKey = fdb.Key(lastChunk.Key)
 					existingStream, err := tr.Get(newChunkKey).Get()
 					if err != nil {
 						return nil, err
@@ -200,11 +235,11 @@ func (b *buffer) Flush() error {
 						return nil, err
 					}
 					// TODO(rartoul): Update first and last properties here as well.
-					metadata.chunks[lastChunkIdx].sizeBytes = len(stream)
+					metadata.Chunks[lastChunkIdx].SizeBytes = len(stream)
 				} else {
 					// Insert new chunk.
 					newChunkKey = tsChunkKey(seriesID, lastChunkIdx)
-					metadata.chunks = append(metadata.chunks, newChunkMetadata(
+					metadata.Chunks = append(metadata.Chunks, newChunkMetadata(
 						newChunkKey,
 						time.Unix(0, 0), // TODO(rartoul): Fill this in.
 						time.Unix(0, 0), // TODO(rartoul): Fill this in.
