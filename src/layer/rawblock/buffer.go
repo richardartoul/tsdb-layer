@@ -51,6 +51,11 @@ type Buffer interface {
 	Flush() error
 }
 
+// TODO(rartoul): This entire thing needs to be refactored to support creating
+// new encoders (not just during flush) so that encoders can be split when:
+// 1. An existing encoder gets too big (so we don't end up with huge streams
+//    that later need to be broken up during flush into smaller streams)
+// 2. An out-of-order write comes in.
 type buffer struct {
 	sync.Mutex
 	db       fdb.Database
@@ -64,6 +69,10 @@ func NewBuffer(db fdb.Database) Buffer {
 	}
 }
 
+// TODO(rartoul): This should split up writes into a new encoder once the existing
+// encoder has reached a certain size so that a given stream cant grow too large
+// inbetween flushes (which is an issue because fdb has maximum sizes for a given
+// value).
 // TODO(rartoul): Should have per-write error handling.
 func (b *buffer) Write(writes []layer.Write) error {
 	b.Lock()

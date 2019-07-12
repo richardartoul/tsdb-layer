@@ -284,6 +284,9 @@ func (c *commitlog) nextKey() tuple.Tuple {
 	return nextKey
 }
 
+// TODO(rartoul): This could run afoul of fdb transction time and/or size limits if there
+// are too many commitlog chunks. Should be refactored to use a limit and break into multiple
+// transactions if necessary.
 func (c *commitlog) getLatestExistingIndex() (int64, bool, error) {
 	key, err := c.db.Transact(func(tr fdb.Transaction) (interface{}, error) {
 		var (
