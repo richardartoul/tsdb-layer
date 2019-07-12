@@ -2,7 +2,6 @@ package rawblock
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -19,6 +18,7 @@ const (
 	tsChunkKeyPrefix   = "-chunk-"
 
 	targetChunkSize = 4096
+	flushBatchSize  = 128
 )
 
 type tsMetadata struct {
@@ -156,11 +156,14 @@ func encodersToDecoders(encs []encoding.Encoder) []encoding.Decoder {
 	return decs
 }
 
-// TODO(rartoul): This function should probably ratelimit itself.
+// TODO(rartoul): Instead of performing one transaction per series it would be more efficient
+// to collect "batches" of series and then write them all together in one fdb transaction.
 func (b *buffer) Flush() error {
 	// Manually control locking so map can be iterated while still being concurrently
 	// accessed.
 	b.Lock()
+
+	var pendingFlush []toFlush
 	for seriesID, encoders := range b.encoders {
 		if len(encoders) == 0 {
 			continue
@@ -173,29 +176,57 @@ func (b *buffer) Flush() error {
 		encoders = append(encoders, encoding.NewEncoder())
 		encodersToFlush := encoders[:len(encoders)-1]
 		b.encoders[seriesID] = encoders
-		b.Unlock()
 
-		var (
-			stream []byte
-			err    error
-		)
-		if len(encodersToFlush) > 1 {
-			streams := make([][]byte, 0, len(encodersToFlush))
-			for _, enc := range encodersToFlush {
-				streams = append(streams, enc.Bytes())
-			}
-			stream, err = encoding.MergeStreams(stream)
-		} else {
-			stream = encodersToFlush[0].Bytes()
+		var streams [][]byte
+		for _, enc := range encodersToFlush {
+			streams = append(streams, enc.Bytes())
 		}
-		if err != nil {
+		pendingFlush = append(pendingFlush, toFlush{
+			id:      seriesID,
+			streams: streams,
+		})
+
+		if len(pendingFlush) < flushBatchSize {
+			continue
+		}
+
+		b.Unlock()
+		if err := b.flush(pendingFlush); err != nil {
 			return err
 		}
+		pendingFlush = pendingFlush[:0]
 
-		// Write to fdb.
-		_, err = b.db.Transact(func(tr fdb.Transaction) (interface{}, error) {
-			metadataKey := metadataKey(seriesID)
-			metaBytes, err := tr.Get(metadataKey).Get()
+		// Hold the lock for the next iteration.
+		b.Lock()
+	}
+	b.Unlock()
+	if err := b.flush(pendingFlush); err != nil {
+		return err
+	}
+	return nil
+}
+
+type toFlush struct {
+	id      string
+	streams [][]byte
+}
+
+func (b *buffer) flush(toFlush []toFlush) error {
+	if len(toFlush) == 0 {
+		return nil
+	}
+
+	_, err := b.db.Transact(func(tr fdb.Transaction) (interface{}, error) {
+		var metadataFutures []fdb.FutureByteSlice
+		// Start parallel fetches for each metadata.
+		for _, series := range toFlush {
+			metadataKey := metadataKey(series.id)
+			metadataFuture := tr.Get(metadataKey)
+			metadataFutures = append(metadataFutures, metadataFuture)
+		}
+
+		for i, series := range toFlush {
+			metaBytes, err := metadataFutures[i].Get()
 			if err != nil {
 				return nil, err
 			}
@@ -210,9 +241,14 @@ func (b *buffer) Flush() error {
 				}
 			}
 
+			stream, err := encoding.MergeStreams(series.streams...)
+			if err != nil {
+				return nil, err
+			}
+
 			var newChunkKey fdb.Key
 			if len(metadata.Chunks) == 0 {
-				newChunkKey = tsChunkKey(seriesID, 0)
+				newChunkKey = tsChunkKey(series.id, 0)
 				metadata.Chunks = append(metadata.Chunks, newChunkMetadata(
 					newChunkKey,
 					time.Unix(0, 0), // TODO(rartoul): Fill this in.
@@ -226,6 +262,10 @@ func (b *buffer) Flush() error {
 				if lastChunk.SizeBytes+len(stream) <= targetChunkSize {
 					// Merge with last chunk.
 					newChunkKey = fdb.Key(lastChunk.Key)
+					// TODO(rartoul): This is inefficient because it forces a synchronous wait
+					// on a read from fdb. This should be refactored so that all of the chunks
+					// that need to be read can be fetched in parallel similar to how the metadata
+					// futures are fetched in parallel above.
 					existingStream, err := tr.Get(newChunkKey).Get()
 					if err != nil {
 						return nil, err
@@ -238,7 +278,7 @@ func (b *buffer) Flush() error {
 					metadata.Chunks[lastChunkIdx].SizeBytes = len(stream)
 				} else {
 					// Insert new chunk.
-					newChunkKey = tsChunkKey(seriesID, lastChunkIdx)
+					newChunkKey = tsChunkKey(series.id, lastChunkIdx)
 					metadata.Chunks = append(metadata.Chunks, newChunkMetadata(
 						newChunkKey,
 						time.Unix(0, 0), // TODO(rartoul): Fill this in.
@@ -252,20 +292,25 @@ func (b *buffer) Flush() error {
 			if err != nil {
 				return nil, err
 			}
+
+			metadataKey := metadataKey(series.id)
 			tr.Set(metadataKey, newMetadataBytes)
 			tr.Set(newChunkKey, stream)
-			return nil, nil
-		})
-		if err != nil {
-			return err
+		}
+		return nil, nil
+	})
+	if err != nil {
+		return err
+	}
+
+	b.Lock()
+	defer b.Unlock()
+	for _, series := range toFlush {
+		encoders, ok := b.encoders[series.id]
+		if !ok {
+			return fmt.Errorf("flushed series %s which does not exist in encoders", series.id)
 		}
 
-		b.Lock()
-		encoders, ok := b.encoders[seriesID]
-		if !ok {
-			b.Unlock()
-			return errors.New("could not retrieve encoders for recently flushed series")
-		}
 		// Now that all of the immutable encoders have been flushed, they can be removed
 		// from the list of existing encoders because they can now be read from FDB directly.
 		//
@@ -274,11 +319,8 @@ func (b *buffer) Flush() error {
 		// is single-threaded. Once there is support for out-of-order writes, this logic will need
 		// to change since there will be no way to determine if all of the encoder except the last
 		// have been flushed yet (or could just force out of order writes to merge on demand?).
-		b.encoders[seriesID] = encoders[len(encoders)-1:]
-
-		// Hold the lock for the next iteration.
+		b.encoders[series.id] = encoders[len(encoders)-1:]
 	}
-
 	return nil
 }
 

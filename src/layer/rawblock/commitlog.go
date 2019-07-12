@@ -13,10 +13,10 @@ import (
 )
 
 const (
-	// Page size.
-	defaultBatchSize       = 4096
+	// Multiple of fdb page size.
+	defaultBatchSize       = 4096 * 24
 	defaultMaxPendingBytes = 10000000
-	defaultFlushEvery      = time.Millisecond
+	defaultFlushEvery      = 10 * time.Millisecond
 
 	commitLogKey            = "commitlog-"
 	commitLogKeyTupleLength = 2
@@ -132,6 +132,7 @@ func (c *commitlog) Open() error {
 		existingIdx = -1
 	}
 	c.lastIdx = existingIdx
+	fmt.Println("last existing IDX", c.lastIdx)
 
 	c.status = clStatusOpen
 

@@ -2,6 +2,7 @@ package rawblock
 
 import (
 	"encoding/binary"
+	"fmt"
 	"log"
 	"math"
 	"sync"
@@ -60,7 +61,6 @@ func (l *rawBlock) WriteBatch(writes []layer.Write) error {
 	}
 	err := l.cl.Write(b)
 	l.bytesPool.Put(b)
-
 	return err
 }
 
@@ -80,10 +80,12 @@ func (l *rawBlock) startPersistLoop() {
 			log.Printf("error waiting for commitlog rotation: %v", err)
 			continue
 		}
+		start := time.Now()
 		if err := l.buffer.Flush(); err != nil {
 			log.Printf("error flushing buffer: %v", err)
 			continue
 		}
+		fmt.Println("flush took: ", time.Now().Sub(start))
 		if err := l.cl.Truncate(truncToken); err != nil {
 			log.Printf("error truncating commitlog: %v", err)
 			continue

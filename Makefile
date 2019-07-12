@@ -8,4 +8,4 @@ install-go-proto-plugin:
 	go get -u github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger
 
 bench:
-	go run ./src/cmd/bench/main.go -numSeries 1000000 -batchSize 256 -numWorkers 300 -duration 5s
+	go run ./src/cmd/bench/main.go -numSeries 10000 -batchSize 128 -numWorkers 300 -duration 30s
