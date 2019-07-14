@@ -109,6 +109,8 @@ func (b *buffer) Write(writes []layer.Write) error {
 	return nil
 }
 
+// TODO(rartoul): This should accept a time range to query and use that information
+// to determine which chunks to pull back instead of just reading all of them.
 func (b *buffer) Read(id string) (encoding.MultiDecoder, bool, error) {
 	var decoders []encoding.Decoder
 	_, err := b.db.Transact(func(tr fdb.Transaction) (interface{}, error) {
