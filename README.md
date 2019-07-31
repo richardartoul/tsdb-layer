@@ -256,29 +256,29 @@ In code, it looks like this:
 
 ```golang
 func (l *rawBlock) startPersistLoop() {
-for {
-  // Prevent excessive activity when there are no incoming writes.
-  time.Sleep(persistLoopInterval)
+  for {
+    // Prevent excessive activity when there are no incoming writes.
+    time.Sleep(persistLoopInterval)
 
-  // truncToken is opaque to the caller but the commit log can use it
-  // to truncate all chunks whose index is lower than the chunk that
-  // was just flushed as part of the commit log rotation.
-  truncToken, err := l.cl.WaitForRotation()
-  if err != nil {
-    log.Printf("error waiting for commitlog rotation: %v", err)
-    continue
-  }
+    // truncToken is opaque to the caller but the commit log can use it
+    // to truncate all chunks whose index is lower than the chunk that
+    // was just flushed as part of the commit log rotation.
+    truncToken, err := l.cl.WaitForRotation()
+    if err != nil {
+      log.Printf("error waiting for commitlog rotation: %v", err)
+      continue
+    }
 
-  if err := l.buffer.Flush(); err != nil {
-    log.Printf("error flushing buffer: %v", err)
-    continue
-  }
+    if err := l.buffer.Flush(); err != nil {
+      log.Printf("error flushing buffer: %v", err)
+      continue
+    }
 
-  if err := l.cl.Truncate(truncToken); err != nil {
-    log.Printf("error truncating commitlog: %v", err)
-    continue
+    if err := l.cl.Truncate(truncToken); err != nil {
+      log.Printf("error truncating commitlog: %v", err)
+      continue
+    }
   }
-}
 }
 ```
 
