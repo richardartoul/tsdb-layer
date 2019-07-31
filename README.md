@@ -1,4 +1,4 @@
-# Time Series and FoundationDB: How I leveraged FoundationDB to achieve millions of writes per second and 10x compression in under two thousand lines of Go code
+# Time Series and FoundationDB: Millions of writes/s and 10x compression in under two thousand lines of Go
 
 ## Disclaimer
 
