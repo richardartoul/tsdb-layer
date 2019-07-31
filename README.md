@@ -292,15 +292,15 @@ I won't go over the implementation of the encoders themselves because that's mai
 
 ```golang
 type Encoder interface {
- Encode(timestamp time.Time, value float64) error
- Bytes() []byte
+  Encode(timestamp time.Time, value float64) error
+  Bytes() []byte
 }
 
 type Decoder interface {
- Next() bool
- Current() (time.Time, float64)
- Err() error
- Reset(b []byte)
+  Next() bool
+  Current() (time.Time, float64)
+  Err() error
+  Reset(b []byte)
 }
 ```
 
@@ -308,8 +308,8 @@ The implementation of the buffer itself is reasonably straightforward. The actua
 
 ```golang
 type buffer struct {
- sync.Mutex
- encoders map[string][]encoding.Encoder
+  sync.Mutex
+  encoders map[string][]encoding.Encoder
 }
 ```
 
@@ -319,35 +319,35 @@ Let's start by looking at the write path. This is the most straightforward part.
 
 ```golang
 func (b *buffer) Write(writes []layer.Write) error {
- b.Lock()
- defer b.Unlock()
+  b.Lock()
+  defer b.Unlock()
 
- for _, w := range writes {
-   encoders, ok := b.encoders[w.ID]
-   if !ok {
-     encoders = []encoding.Encoder{encoding.NewEncoder()}
-     b.encoders[w.ID] = encoders
-   }
+  for _, w := range writes {
+    encoders, ok := b.encoders[w.ID]
+    if !ok {
+      encoders = []encoding.Encoder{encoding.NewEncoder()}
+      b.encoders[w.ID] = encoders
+    }
 
-   enc := encoders[len(encoders)-1]
-   lastT, _, hasWrittenAnyValues := enc.LastEncoded()
-   if hasWrittenAnyValues {
-     if w.Timestamp.Before(lastT) {
-       return fmt.Errorf(
-         "cannot write data out of order, series: %s, prevTimestamp: %s, currTimestamp: %s",
-         w.ID, lastT.String(), w.Timestamp.String())
-     }
-     if w.Timestamp.Equal(lastT) {
-       return fmt.Errorf(
-         "cannot upsert existing values, series: %s, currTimestamp: %s",
-         w.ID, lastT.String())
-     }
-   }
+    enc := encoders[len(encoders)-1]
+    lastT, _, hasWrittenAnyValues := enc.LastEncoded()
+    if hasWrittenAnyValues {
+      if w.Timestamp.Before(lastT) {
+        return fmt.Errorf(
+          "cannot write data out of order, series: %s, prevTimestamp: %s, currTimestamp: %s",
+          w.ID, lastT.String(), w.Timestamp.String())
+      }
+      if w.Timestamp.Equal(lastT) {
+        return fmt.Errorf(
+          "cannot upsert existing values, series: %s, currTimestamp: %s",
+          w.ID, lastT.String())
+      }
+    }
 
-   if err := enc.Encode(w.Timestamp, w.Value); err != nil {
-     return err
-   }
- }
+    if err := enc.Encode(w.Timestamp, w.Value); err != nil {
+      return err
+    }
+  }
 
  return nil
 }
@@ -361,7 +361,7 @@ The first step for flushing the in-memory encoder data to FDB is to retrieve the
 
 ```golang
 type tsMetadata struct {
- Chunks []chunkMetadata
+  Chunks []chunkMetadata
 }
 ```
 
@@ -369,10 +369,10 @@ and each `chunkMetadata` looks like this:
 
 ```golang
 type chunkMetadata struct {
- Key       []byte
- First     time.Time
- Last      time.Time
- SizeBytes int
+  Key       []byte
+  First     time.Time
+  Last      time.Time
+  SizeBytes int
 }
 ```
 
