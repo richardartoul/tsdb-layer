@@ -219,7 +219,7 @@ Another way to understand M3DB’s architecture is that at any point in time an 
 
 I decided that if I was going to achieve similar levels of performance as M3DB that I would need to replicate the architecture as well.
 
-![](./fdb_storage.png)
+![](./resources/fdb_storage.png)
 
 Notice that the architecture looks very similar to M3DB's, except instead of using the filesystem we use FDB. This is why I refer to the architecture as "semi-stateful". It's stateful in the sense that it needs to hold some state in memory and if a node fails or reboots it will have to "bootstrap" that state from the commit logs just like M3DB does.
 
