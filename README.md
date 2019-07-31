@@ -22,8 +22,8 @@ Primarily, our system should support the following two APIs:
 
 ```golang
 type Value struct {
-Timestamp int64
-Value float64
+  Timestamp int64
+  Value float64
 }
 
 Write(seriesID string, value Value)
@@ -37,10 +37,10 @@ At this point you may be wondering why do we even need a fancy distributed syste
 
 ```sql
 CREATE TABLE timeseries (
-series_id TEXT,
-timestamp integer,
-value double precision,
-PRIMARY KEY(series_id, timestamp)
+  series_id TEXT,
+  timestamp integer,
+  value double precision,
+  PRIMARY KEY(series_id, timestamp)
 );
 ```
 
@@ -94,11 +94,11 @@ The most naive approach to storing timeseries data in FDB looks something like t
 
 ```golang
 db.Transact(func(tr FDB.Transaction) (interface{}, error) {
-for _, w := range writes {
-  key := tuple.Tuple{w.ID, w.Timestamp.UnixNano()}
-  tr.Set(key, tuple.Tuple{w.Value}.Pack())
-}
-return nil, nil
+  for _, w := range writes {
+    key := tuple.Tuple{w.ID, w.Timestamp.UnixNano()}
+    tr.Set(key, tuple.Tuple{w.Value}.Pack())
+  }
+  return nil, nil
 })
 ```
 
@@ -119,79 +119,79 @@ The next design I attempted was to perform [Gorilla Compression](https://www.vld
 Here is a simplified version of the primary FDB transaction for this implementation:
 
 ```golang
-_, err := l.db.Transact(func(tr FDB.Transaction) (interface{}, error) {
-   metadataKey := newTimeseriesMetadataKeyFromID(write.seriesID)
-   metadata, err := tr.Get(metadataKey).Get()
-   if err != nil {
-     return nil, err
-   }
+_, err := l.db.Transact(func(tr fdb.Transaction) (interface{}, error) {
+  metadataKey := newTimeseriesMetadataKeyFromID(write.seriesID)
+  metadata, err := tr.Get(metadataKey).Get()
+  if err != nil {
+    return nil, err
+  }
 
-   var (
-     metaValue  timeSeriesMetadata
-     dataAppend []byte
-     enc         = encoding.NewEncoder()
-   )
+  var (
+    metaValue  timeSeriesMetadata
+    dataAppend []byte
+    enc         = encoding.NewEncoder()
+  )
 
-   if len(metadataBytes) == 0 {
-     // Never written.
-     enc := encoding.NewEncoder()
-     if err := enc.Encode(write.Timestamp, write.Value); err != nil {
-       return nil, err
-     }
+  if len(metadataBytes) == 0 {
+    // Never written.
+    enc := encoding.NewEncoder()
+    if err := enc.Encode(write.Timestamp, write.Value); err != nil {
+      return nil, err
+    }
 
-     metaValue = timeSeriesMetadata{
-       State: enc.State(),
-     }
+    metaValue = timeSeriesMetadata{
+      State: enc.State(),
+    }
 
-     b := enc.Bytes()
-     if len(b) > 1 {
-       dataAppend = enc.Bytes()[:len(b)-1]
-     }
-   } else {
-     if err := json.Unmarshal(metadataBytes, &metaValue); err != nil {
-       return nil, err
-     }
+    b := enc.Bytes()
+    if len(b) > 1 {
+      dataAppend = enc.Bytes()[:len(b)-1]
+    }
+  } else {
+    if err := json.Unmarshal(metadataBytes, &metaValue); err != nil {
+      return nil, err
+    }
 
-     // Has been written before, restore encoder state.
-     if err := enc.Restore(metaValue.State); err != nil {
-       return nil, err
-     }
+    // Has been written before, restore encoder state.
+    if err := enc.Restore(metaValue.State); err != nil {
+      return nil, err
+    }
 
-     if err := enc.Encode(write.Timestamp, write.Value); err != nil {
-       return nil, err
-     }
+    if err := enc.Encode(write.Timestamp, write.Value); err != nil {
+      return nil, err
+    }
 
-     // Ensure new state gets persisted.
-     var (
-       newState = enc.State()
-       b        = enc.Bytes()
-     )
-     if len(b) == 0 {
-       return nil, errors.New("encoder bytes was length zero")
-     }
-     if len(b) == 1 {
-       // The existing last byte was modified without adding any additional bytes. The last
-       // byte is always tracked by the state so there is nothing to append here.
-     }
-     if len(b) > 1 {
-       // The last byte will be kept track of by the state, but any bytes preceding it are
-       // new "complete" bytes which should be appended to the compressed stream.
-       dataAppend = b[:len(b)-1]
-     }
-     metaValue.LastByte = b[len(b)-1]
-     metaValue.State = newState
-   }
+    // Ensure new state gets persisted.
+    var (
+      newState = enc.State()
+      b        = enc.Bytes()
+    )
+    if len(b) == 0 {
+      return nil, errors.New("encoder bytes was length zero")
+    }
+    if len(b) == 1 {
+      // The existing last byte was modified without adding any additional bytes. The last
+      // byte is always tracked by the state so there is nothing to append here.
+    }
+    if len(b) > 1 {
+      // The last byte will be kept track of by the state, but any bytes preceding it are
+      // new "complete" bytes which should be appended to the compressed stream.
+      dataAppend = b[:len(b)-1]
+    }
+    metaValue.LastByte = b[len(b)-1]
+    metaValue.State = newState
+  }
 
-   newMetadataBytes, err := json.Marshal(&metaValue)
-   if err != nil {
-     return nil, err
-   }
+  newMetadataBytes, err := json.Marshal(&metaValue)
+  if err != nil {
+    return nil, err
+  }
 
-   tr.Set(metadataKey, newMetadataBytes)
-   dataKey := newTimeseriesDataKeyFromID(write.ID)
-   tr.AppendIfFits(dataKey, dataAppend)
+  tr.Set(metadataKey, newMetadataBytes)
+  dataKey := newTimeseriesDataKeyFromID(write.ID)
+  tr.AppendIfFits(dataKey, dataAppend)
 
- return nil, nil
+  return nil, nil
 })
 ```
 
