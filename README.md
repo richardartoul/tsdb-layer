@@ -1,4 +1,4 @@
-# Time Series and FoundationDB: Millions of writes/s and 10x compression in under two thousand lines of Go
+# Time Series and FoundationDB: Millions of writes/s and 10x compression in under 2,000 lines of Go
 
 ## Disclaimer
 
