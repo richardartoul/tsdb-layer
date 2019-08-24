@@ -248,7 +248,7 @@ We can setup a background process that runs on regular intervals and performs th
 2. Flush all in-memory buffered data as compressed chunks to FDB (note that the storage engine will still be accepting writes while this operation is going on, but that’s fine, this flow only needs to ensure that all writes that were already acknowledged **before** the commitlog chunk from #1 was written out are flushed to FDB).
 3. Delete all commitlog chunks with an index **lower** than the chunk from step #1. Note this operation is now safe because the previous step (if it succeeds) guarantees that all the data in all the commitlog chunks that will be deleted have already been persisted to FDB in the form of compressed data chunks.
 
-[](./resources/fdb_time.png)
+![](./resources/fdb_time.png)
 
 Using the diagram above as an example, the persistence loop would wait for chunk #3 to be flushed, then the buffer would begin flushing everything that was currently in-memory, and finally once that completed the storage engine could delete all commitlog chunks lower than 4 because all the data they contained was flushed to FDB as compressed chunks.
 
