@@ -428,7 +428,7 @@ Storing and compressing custom types turns out to be the easiest to solve. All w
 
 Next up is secondary indexing. We already got a brief glimpse about how to perform secondary indexing in FDB earlier with the `flush` code where we atomically wrote a new time series chunk and updated the series’ metadata entry (which is effectively a secondary index over the compressed data chunks). Implementing exact-match secondary indexing would be fairly straightforward. For example, let's say we wanted to implement a tag-based inverted index like the one M3DB supports. For each unique combination of key/value pair in the index we would store an FDB entry that contained a list of all the time series IDs that were tagged with that unique combination. The image below depicts a simple example of how to store and index two separate time series:
 
-[](./resources/fdb_index.png)
+![](./resources/fdb_index.png)
 
 If we wanted to query for all the time series where the `city` tag is equal to `san_francisco` then we would retrieve the FDB entry with the key `<storage,index,term,city,san_francisco>` which would immediately tell us that there applicable series are `sf_num_widgets` and `sf_num_people`. More complicated queries could be executed by unioning and intersecting the results of these individual term queries. For example, it's not difficult to imagine how this simple schema could evaluate the query: “fetch all time series where `city` equals `san_francisco` OR `type` equals `widgets`. Ta da! We’ve just implemented a [postings list] on top of FDB.
 
